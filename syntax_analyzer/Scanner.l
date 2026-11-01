@@ -28,7 +28,7 @@ HEX        [0-9a-fA-F]
 <COMMENT>\n     { /* consume new line char */}
 <COMMENT>"%/"   { BEGIN(INITIAL); }
 
-/* consume space, tab and new line */
+    /* consume space, tab and new line */
 [ \t\r\n]+      {  }
 
 
