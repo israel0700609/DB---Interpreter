@@ -1,0 +1,11 @@
+# Executables & Libraries
+*.o
+*.a
+*.so
+db_compiler
+
+# Flex & Bison generated files
+*.tab.c
+*.tab.h
+lex.yy.c
+*.output
