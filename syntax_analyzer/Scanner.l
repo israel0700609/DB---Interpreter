@@ -63,6 +63,31 @@ HEX        [0-9a-fA-F]
 "OR"            { return OR; }
 
 
+"GROUP"         { return GROUP; }
+"BY"            { return BY; }
+"HAVING"        { return HAVING; }
+"ORDER"         { return ORDER; }
+"ASC"           { return ASC; }
+"DESC"          { return DESC; }
+"LIMIT"         { return LIMIT; }
+"DISTINCT"      { return DISTINCT; }
+
+"UNION"         { return UNION; }
+"INTERSECT"     { return INTERSECT; }
+"MINUS"         { return MINUS; }
+"EXISTS"        { return EXISTS; }
+
+"IN"            { return IN; }
+"IS"            { return IS; }
+
+
+"COUNT"         { return COUNT; }
+"SUM"           { return SUM; }
+"AVG"           { return AVG; }
+"MIN"           { return MIN; }
+"MAX"           { return MAX; }
+
+
 "TRUE"          { 
     yylval.int_val = 1; 
     return TRUE_LITERAL;
@@ -88,49 +113,34 @@ HEX        [0-9a-fA-F]
 }
 
 
-\"([^\"\n\\]|\\.)*\" { 
-    int len = yyleng - 2;
+\'([^'\n\\]|\\.)*\' { 
+    int len = yyleng - 2; 
     char* str = (char*)malloc(len + 1);
     
-    int i = 1; 
     int j = 0;
-    
-    while (i <= len) {
+    for (int i = 1; i <= len; ) {
         if (yytext[i] == '\\') {
-            i++;
-            switch(yytext[i]) {
-                case 'n': str[j++] = '\n'; break;
-                case 't': str[j++] = '\t'; break;
-                case 'r': str[j++] = '\r'; break;
+            i++; 
+            switch (yytext[i]) {
+                case 'n':  str[j++] = '\n'; break;
+                case 't':  str[j++] = '\t'; break;
+                case 'r':  str[j++] = '\r'; break;
                 case '\\': str[j++] = '\\'; break;
-                case '\"': str[j++] = '\"'; break;
-                default:  str[j++] = yytext[i]; break; 
+                case '\'': str[j++] = '\''; break;
+                default:   
+                    str[j++] = '\\';
+                    str[j++] = yytext[i]; 
+                    break; 
             }
+            i++;
         } else {
-            str[j++] = yytext[i];
+            str[j++] = yytext[i++];
         }
-        i++;
     }
-    str[j] = '\0'; 
+    str[j] = '\0';
     
     yylval.str_val = str;
     return STRING_LITERAL; 
-}
-
-\'([^'\n\\]|\\.)\'   { 
-    if(yytext[1] != '\\') {
-        yylval.char_val = yytext[1];
-    } else {
-        switch(yytext[2]){
-            case 'n': yylval.char_val = '\n'; break;
-            case 't': yylval.char_val = '\t'; break;
-            case 'r': yylval.char_val = '\r'; break;
-            case '\\': yylval.char_val = '\\'; break;
-            case '\'': yylval.char_val = '\''; break;
-            default:  yylval.char_val = yytext[2]; break; 
-        }
-    }
-    return CHAR_LITERAL;
 }
 
 ({ALPHA}|"_")({ALPHA}|{DIGIT}|"_")* {
@@ -144,18 +154,14 @@ HEX        [0-9a-fA-F]
 "!="                { return NEQ; }
 ">="                { return GTE; }
 "<="                { return LTE; }
-"&&"                { return AND; }
-"||"                { return OR; }
 
 
-
-";"|","|"("|")"|"*"|">"|"<" {
+"+"|"-"|"/"|"%"|";"|","|"("|")"|"*"|">"|"<" {
     return yytext[0];
 }
 
-
 .                   {
-    printf(""Lexical Error on line %d : Unrecognized character '%s'\n", yylineno, yytext);
+    printf("Lexical Error on line %d : Unrecognized character '%s'\n", yylineno, yytext);
     exit(1);
 }
 
