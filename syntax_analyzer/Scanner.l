@@ -32,7 +32,7 @@ HEX        [0-9a-fA-F]
 [ \t\r\n]+      {  }
 
 
-/* keywords */
+    /* keywords */
 
 "CREATE"        { return CREATE; }
 "DROP"          { return DROP; }
@@ -178,5 +178,4 @@ int main() {
 
     yylex();
     return 0;
-
 }
