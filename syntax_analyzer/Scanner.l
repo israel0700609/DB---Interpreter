@@ -8,7 +8,7 @@
 %}
 
 
-
+/* options */
 %option yylineno 
 %option noyywrap 
 %option caseless
@@ -24,13 +24,15 @@ HEX        [0-9a-fA-F]
 %%
 
 "/%"            { BEGIN(COMMENT); } 
-<COMMENT>.      {}  
-<COMMENT>\n     {}
+<COMMENT>.      { /* consume regular chars */}  
+<COMMENT>\n     { /* consume new line char */}
 <COMMENT>"%/"   { BEGIN(INITIAL); }
 
+/* consume space, tab and new line */
 [ \t\r\n]+      {  }
 
 
+/* keywords */
 
 "CREATE"        { return CREATE; }
 "DROP"          { return DROP; }
@@ -80,7 +82,7 @@ HEX        [0-9a-fA-F]
 "IN"            { return IN; }
 "IS"            { return IS; }
 
-
+/* aggression functions */
 "COUNT"         { return COUNT; }
 "SUM"           { return SUM; }
 "AVG"           { return AVG; }
@@ -88,6 +90,7 @@ HEX        [0-9a-fA-F]
 "MAX"           { return MAX; }
 
 
+/* literals */
 "TRUE"          { 
     yylval.int_val = 1; 
     return TRUE_LITERAL;
@@ -143,6 +146,8 @@ HEX        [0-9a-fA-F]
     return STRING_LITERAL; 
 }
 
+
+/* identifier */
 ({ALPHA}|"_")({ALPHA}|{DIGIT}|"_")* {
     yylval.str_val = (char*)malloc(strlen(yytext) + 1);
     strcpy(yylval.str_val, yytext);
@@ -170,6 +175,8 @@ HEX        [0-9a-fA-F]
 
 
 int main() {
+
     yylex();
     return 0;
+
 }
