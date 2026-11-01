@@ -8,7 +8,7 @@
 %}
 
 
-/* options */
+    /* options */
 %option yylineno 
 %option noyywrap 
 %option caseless
@@ -82,7 +82,7 @@ HEX        [0-9a-fA-F]
 "IN"            { return IN; }
 "IS"            { return IS; }
 
-/* aggression functions */
+    /* aggression functions */
 "COUNT"         { return COUNT; }
 "SUM"           { return SUM; }
 "AVG"           { return AVG; }
@@ -90,7 +90,7 @@ HEX        [0-9a-fA-F]
 "MAX"           { return MAX; }
 
 
-/* literals */
+    /* literals */
 "TRUE"          { 
     yylval.int_val = 1; 
     return TRUE_LITERAL;
@@ -147,7 +147,7 @@ HEX        [0-9a-fA-F]
 }
 
 
-/* identifier */
+    /* identifier */
 ({ALPHA}|"_")({ALPHA}|{DIGIT}|"_")* {
     yylval.str_val = (char*)malloc(strlen(yytext) + 1);
     strcpy(yylval.str_val, yytext);
