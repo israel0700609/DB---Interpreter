@@ -27,7 +27,9 @@ typedef enum {
   NODE_REAL_LITERAL,
   NODE_STRING_LITERAL,
   NODE_BOOL_LITERAL,
-  NODE_NULL_LITERAL
+  NODE_NULL_LITERAL,
+
+  NODE_PROGRAM
 } NodeType;
 
 struct ASTNode;
@@ -102,6 +104,10 @@ typedef struct {
   char *table_name;
 } DropStmt;
 
+typedef struct {
+  struct ASTNode *stmts;
+} ProgramNode;
+
 typedef struct ASTNode {
   NodeType type;
   int lineno;
@@ -125,6 +131,8 @@ typedef struct ASTNode {
     ColumnDef col_def;
 
     OrderByItem order_by_item;
+
+    ProgramNode program;
   } data;
 
   struct ASTNode *next;
@@ -140,6 +148,7 @@ ASTNode *create_identifier_node(char *name, int lineno);
 ASTNode *create_binary_expr_node(char *op, ASTNode *left, ASTNode *right,
                                  int lineno);
 ASTNode *create_unary_expr_node(char *op, ASTNode *operand, int lineno);
+
 ASTNode *create_func_call_node(char *name, ASTNode *arg, int lineno);
 
 ASTNode *create_select_node(int is_distinct, ASTNode *select_list,
@@ -167,6 +176,8 @@ ASTNode *create_column_def_node(char *name, char *type, int is_pk, int is_nn,
 ASTNode *create_assignment_node(ASTNode *identifier, ASTNode *expr, int lineno);
 
 ASTNode *create_order_by_item_node(ASTNode *expr, int is_desc, int lineno);
+
+ASTNode *create_program_node(ASTNode *stmts, int lineno);
 
 ASTNode *append_ast_node(ASTNode *head, ASTNode *new_node);
 
