@@ -1,5 +1,9 @@
 #include "ast.h"
 
+extern int lineno;
+
+ASTNode *root = NULL;
+
 ASTNode *create_int_node(int val, int lineno) {
   ASTNode *node = (ASTNode *)malloc(sizeof(ASTNode));
   if (!node) {
@@ -334,6 +338,24 @@ ASTNode *create_order_by_item_node(ASTNode *expr, int is_desc, int lineno) {
 
   OrderByItem orderByItem = {expr, is_desc};
   node->data.order_by_item = orderByItem;
+
+  node->next = NULL;
+
+  return node;
+}
+
+ASTNode *create_program_node(ASTNode *stmts, int lineno) {
+  ASTNode *node = (ASTNode *)malloc(sizeof(ASTNode));
+  if (!node) {
+    fprintf(stderr, "Error : Out of memory at line %d\n", lineno);
+    exit(1);
+  }
+
+  node->type = NODE_PROGRAM;
+  node->lineno = lineno;
+
+  ProgramNode programNode = {stmts};
+  node->data.program = programNode;
 
   node->next = NULL;
 
