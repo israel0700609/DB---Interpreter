@@ -181,7 +181,7 @@ ASTNode *create_program_node(ASTNode *stmts, int lineno);
 
 ASTNode *append_ast_node(ASTNode *head, ASTNode *new_node);
 
-void print_ast(ASTNode *node, int indent);
+void print_ast(ASTNode *node, FILE *out, int indent);
 
 void free_ast(ASTNode *node);
 

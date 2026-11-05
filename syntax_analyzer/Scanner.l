@@ -3,6 +3,7 @@
 #include <stdio.h> 
 #include <stdlib.h>
 #include <string.h>
+#include "ast/ast.h"
 #include "y.tab.h"
 
 %}
@@ -82,7 +83,7 @@ HEX        [0-9a-fA-F]
 "IN"            { return IN; }
 "IS"            { return IS; }
 
-    /* aggression functions */
+    /* aggregation functions  */
 "COUNT"         { return COUNT; }
 "SUM"           { return SUM; }
 "AVG"           { return AVG; }
@@ -161,7 +162,7 @@ HEX        [0-9a-fA-F]
 "<="                { return LTE; }
 
 
-"+"|"-"|"/"|"%"|";"|","|"("|")"|"*"|">"|"<" {
+"+"|"-"|"/"|"*"|"%"|";"|","|"("|")"|">"|"<" {
     return yytext[0];
 }
 
@@ -173,9 +174,9 @@ HEX        [0-9a-fA-F]
 %%
 
 
-
+#ifdef STANDALONE_SCANNER
 int main() {
-
     yylex();
     return 0;
 }
+#endif
