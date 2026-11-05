@@ -1,6 +1,6 @@
-# DB-Compiler
+# DB-Interpreter
 
-A lightweight Frontend Compiler for a custom SQL-like database query language. 
+A lightweight Frontend Interpreter for a custom SQL-like database query language. 
 Built using C, Flex (Lexer), and Bison (Parser).
 
 ## Architecture & Pipeline
@@ -16,4 +16,4 @@ Built using C, Flex (Lexer), and Bison (Parser).
 ## Building
 ```bash
 make
-./db_compiler
+./db_interpreter
