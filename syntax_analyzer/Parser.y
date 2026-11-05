@@ -26,7 +26,7 @@ void yyerror(const char* s);
 
 
 /* Keywords */ 
-%token CREATE DROP TABLE PRIMARY KEY NOT  
+%token CREATE DROP TABLE PRIMARY KEY 
 %token SELECT INSERT INTO VALUES UPDATE SET DELETE FROM WHERE  
 %token GROUP BY HAVING ORDER ASC DESC LIMIT DISTINCT 
 %token UNION INTERSECT MINUS EXISTS
@@ -45,18 +45,23 @@ void yyerror(const char* s);
 %token EQ NEQ GTE LTE
 %token AND OR NOT IN IS
 
+%type <node_val> program statements statement stmt select_stmt select_base_stmt select_list where_clause group_by having order_by group_by_list order_by_list order_item create_stmt column_def_list column_def insert_stmt insert_order insert_order_list values_list update_stmt update_list assignment delete_stmt drop_stmt expression 
+
+%type <int_val> is_distinct limit is_primary_key is_nn
+
+%type <str_val> select_operator column_type aggregation_function
 
 
 /* Precedence */
+%left UNION INTERSECT MINUS
 %left OR
 %left AND
 %left EQ NEQ
-%left '>' '<' GTE LTE 
-%left '+' '-' 
-%left '*' '/' 
-%right '!'
-%right '^'
-%right '&'
+%left '>' '<' GTE LTE IS
+%left '+' '-' '%'
+%left '*' '/'
+%right UPLUS UMINUS 
+%right NOT '!'
 
 
 %%
@@ -72,7 +77,6 @@ statements:
         statements statement { $$ = append_ast_node($1, $2); }
     | 
         statement            { $$ = $1; }
-    |                        { $$ = NULL; }
     ;
 
 
@@ -124,6 +128,8 @@ select_list:
         expression       { $$ = $1; }
     | 
         select_list ',' expression { $$ = append_ast_node($1, $3); }
+    | 
+        '*' { $$ = create_identifier_node("*", yylineno); }
     ;
 
 where_clause: 
@@ -276,14 +282,16 @@ update_list:
         update_list ',' assignment { $$ = append_ast_node($1, $3); }
     ; 
 
-assignment: 
-        IDENTIFIER EQ expression
-        {
-            $$ = create_assignment_node($1, $3, yylineno);
-            free($1);
-        }
+assignment:
+    IDENTIFIER EQ expression
+    {
+        ASTNode* id_node = create_identifier_node($1, yylineno);
+        
+        $$ = create_assignment_node(id_node, $3, yylineno);
+        
+        free($1);
+    }
     ;
-
 delete_stmt: 
         DELETE FROM IDENTIFIER where_clause
         {
@@ -300,4 +308,176 @@ drop_stmt:
             free($3);
         }
     ;
+
+
+expression: 
+        expression OR expression 
+        { 
+            $$ = create_binary_expr_node("OR", $1, $3, yylineno); 
+        }
+    | 
+        expression AND expression
+        {
+            $$ = create_binary_expr_node("AND", $1, $3, yylineno);
+        }
+    | 
+        expression EQ expression 
+        {
+            $$ = create_binary_expr_node("=", $1, $3, yylineno);
+        }
+    | 
+        expression NEQ expression 
+        {
+            $$ = create_binary_expr_node("NEQ", $1, $3, yylineno);
+        }
+    |
+        expression GTE expression 
+        {
+            $$ = create_binary_expr_node("GTE", $1, $3, yylineno);
+        }
+    |
+        expression LTE expression 
+        {
+            $$ = create_binary_expr_node("LTE", $1, $3, yylineno);
+        }
+    |
+        expression '+' expression 
+        {
+            $$ = create_binary_expr_node("+", $1, $3, yylineno);
+        }
+    |
+        expression '-' expression 
+        {
+            $$ = create_binary_expr_node("-", $1, $3, yylineno);
+        } 
+    |
+        expression '/' expression 
+        {
+            $$ = create_binary_expr_node("/", $1, $3, yylineno);
+        }
+    |
+        expression '*' expression 
+        {
+            $$ = create_binary_expr_node("*", $1, $3, yylineno);
+        }
+    |
+        expression '%' expression 
+        {
+            $$ = create_binary_expr_node("%", $1, $3, yylineno);
+        }
+    |
+        expression '<' expression 
+        {
+            $$ = create_binary_expr_node("<", $1, $3, yylineno);
+        }
+    |
+        expression '>' expression
+        {
+            $$ = create_binary_expr_node(">", $1, $3, yylineno);
+        }
+    | 
+        '+' expression %prec UPLUS
+            { 
+                $$ = create_unary_expr_node("+", $2, yylineno); 
+            }
+    |
+        '-' expression  %prec UMINUS
+        { 
+            $$ = create_unary_expr_node("-", $2, yylineno); 
+        }
+    |   
+        '!' expression { $$ = create_unary_expr_node("!", $2, yylineno); }
+    |
+        NOT expression { $$ = create_unary_expr_node("!", $2, yylineno); }
+    |
+        expression IS NULL_TOK
+        { 
+            $$ = create_unary_expr_node("IS_NULL", $1, yylineno); 
+        }
+    | 
+        expression IS NOT NULL_TOK 
+        {
+            $$ = create_unary_expr_node("IS_NOT_NULL", $1, yylineno);
+        }
+    |
+        '(' expression ')' { $$ = $2; }
+    |
+        aggregation_function '(' expression ')'
+        {
+            $$ = create_func_call_node($1, $3, yylineno);
+        }
+    |
+        COUNT '(' '*' ')' { $$ = create_func_call_node("COUNT", NULL, yylineno); }
+    |
+        COUNT '(' expression ')'
+        {
+            $$ = create_func_call_node("COUNT", $3, yylineno);
+        }
+    |
+        IDENTIFIER 
+        {
+            $$ = create_identifier_node($1, yylineno);
+            free($1);
+        }
+    | 
+        TRUE_LITERAL { $$ = create_bool_node(1,yylineno); }
+    |
+        FALSE_LITERAL { $$ = create_bool_node(0, yylineno); }
+    | 
+        INT_LITERAL { $$ = create_int_node($1, yylineno); }
+    |
+        REAL_LITERAL { $$ = create_real_node($1, yylineno); }
+    | 
+        STRING_LITERAL { $$ = create_string_node($1, yylineno); }
+    | 
+        NULL_TOK { $$ = create_null_node(yylineno); }
+    
+    ; 
+
+aggregation_function: 
+        SUM   { $$ = "SUM"; }
+    |
+        AVG   { $$ = "AVG"; }
+    | 
+        MIN   { $$ = "MIN"; }
+    |   
+        MAX   { $$ = "MAX"; }
+    ;
+
 %% 
+
+
+
+
+
+
+
+void yyerror(const char* s){
+    printf("Syntax Error on line %d: %s: Unexpected token '%s' \n ", yylineno, s, yytext);
+}
+
+int main(int argc, char** argv){
+    FILE* out = stdout;
+
+    if(argc > 1){
+        out = fopen(argv[1], "w");
+        if(!out){
+            fprintf(stderr, "Failed to open file: %s\n", argv[1]);
+            return 1;
+        }
+    }
+
+    if(yyparse() == 0){
+        fprintf(out, " Parsing Successful. \n");
+        fprintf(out, " Abstract Syntax Tree: \n");
+
+        print_ast(root, out, 0);
+    }
+
+    if(out != stdout){
+        fclose(out);
+    }
+
+    
+    return 0; 
+}

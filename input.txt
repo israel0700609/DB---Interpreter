@@ -1,0 +1,26 @@
+CREATE TABLE employees (
+    id INT PRIMARY KEY,
+    name TEXT NOT NULL,
+    salary FLOAT,
+    is_active BOOLEAN
+);
+
+INSERT INTO employees (id, name, salary, is_active) VALUES (101, 'Alice', 7500.50, TRUE);
+
+UPDATE employees SET salary = salary * 1.10 WHERE is_active = TRUE AND salary < 10000.0;
+
+SELECT DISTINCT name, SUM(salary) * 12 / 2, COUNT(*) 
+FROM employees 
+WHERE (salary >= 5000.0 AND NOT is_active = FALSE) OR salary IS NOT NULL 
+GROUP BY name, is_active 
+HAVING AVG(salary) > 3000.0 
+ORDER BY salary DESC, name ASC 
+LIMIT 50
+
+UNION
+
+SELECT name, salary, 0 
+FROM employees 
+WHERE is_active = FALSE;
+
+DELETE FROM employees WHERE is_active = FALSE AND salary IS NULL;

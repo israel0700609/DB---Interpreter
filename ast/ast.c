@@ -362,151 +362,176 @@ ASTNode *create_program_node(ASTNode *stmts, int lineno) {
   return node;
 }
 
-static void print_indent(int indent) {
+static void print_indent(FILE *out, int indent) {
   for (int i = 0; i < indent; i++) {
-    printf("  ");
+    fprintf(out, "  ");
   }
 }
 
-void print_ast(ASTNode *node, int indent) {
+void print_ast(ASTNode *node, FILE *out, int indent) {
   if (!node)
     return;
 
-  print_indent(indent);
+  print_indent(out, indent);
 
   switch (node->type) {
   case NODE_INT_LITERAL:
-    printf("[INT] %d\n", node->data.int_val);
+    fprintf(out, "[INT] %d\n", node->data.int_val);
     break;
 
   case NODE_REAL_LITERAL:
-    printf("[REAL] %f\n", node->data.real_val);
+    fprintf(out, "[REAL] %f\n", node->data.real_val);
     break;
 
   case NODE_STRING_LITERAL:
-    printf("[STRING] \"%s\"\n", node->data.str_val);
+    fprintf(out, "[STRING] \"%s\"\n", node->data.str_val);
     break;
 
   case NODE_BOOL_LITERAL:
-    printf("[BOOL] %s\n", node->data.int_val ? "TRUE" : "FALSE");
+    fprintf(out, "[BOOL] %s\n", node->data.int_val ? "TRUE" : "FALSE");
     break;
 
   case NODE_NULL_LITERAL:
-    printf("[NULL]\n");
+    fprintf(out, "[NULL]\n");
     break;
 
   case NODE_IDENTIFIER:
-    printf("[IDENTIFIER] %s\n", node->data.str_val);
+    fprintf(out, "[IDENTIFIER] %s\n", node->data.str_val);
     break;
 
   case NODE_BINARY_EXPR:
-    printf("[BINARY EXPR] Op: %s\n", node->data.binary.op);
-    print_ast(node->data.binary.left, indent + 1);
-    print_ast(node->data.binary.right, indent + 1);
+    fprintf(out, "[BINARY EXPR] Op: %s\n", node->data.binary.op);
+    print_ast(node->data.binary.left, out, indent + 1);
+    print_ast(node->data.binary.right, out, indent + 1);
     break;
 
   case NODE_UNARY_EXPR:
-    printf("[UNARY EXPR] Op: %s\n", node->data.unary.op);
-    print_ast(node->data.unary.operand, indent + 1);
+    fprintf(out, "[UNARY EXPR] Op: %s\n", node->data.unary.op);
+    print_ast(node->data.unary.operand, out, indent + 1);
     break;
 
   case NODE_ASSIGNMENT:
-    printf("[ASSIGNMENT]\n");
-    print_ast(node->data.assignment.identifier, indent + 1);
-    print_ast(node->data.assignment.expr, indent + 1);
+    fprintf(out, "[ASSIGNMENT]\n");
+    print_ast(node->data.assignment.identifier, out, indent + 1);
+    print_ast(node->data.assignment.expr, out, indent + 1);
     break;
 
   case NODE_ORDER_BY_ITEM:
-    printf("[ORDER BY ITEM] %s\n",
-           node->data.order_by_item.is_desc ? "DESC" : "ASC");
-    print_ast(node->data.order_by_item.expr, indent + 1);
+    fprintf(out, "[ORDER BY ITEM] %s\n",
+            node->data.order_by_item.is_desc ? "DESC" : "ASC");
+    print_ast(node->data.order_by_item.expr, out, indent + 1);
     break;
 
   case NODE_SELECT_STMT:
-    printf("[SELECT STMT] Table: %s, Distinct: %d, Limit: %d\n",
-           node->data.select_stmt.from_table ? node->data.select_stmt.from_table
-                                             : "NULL",
-           node->data.select_stmt.is_distinct,
-           node->data.select_stmt.limit_val);
+    fprintf(
+        out, "[SELECT STMT] Table: %s, Distinct: %d, Limit: %d\n",
+        node->data.select_stmt.from_table ? node->data.select_stmt.from_table
+                                          : "NULL",
+        node->data.select_stmt.is_distinct, node->data.select_stmt.limit_val);
 
     if (node->data.select_stmt.select_list) {
-      print_indent(indent + 1);
-      printf("Select List:\n");
-      print_ast(node->data.select_stmt.select_list, indent + 2);
+      print_indent(out, indent + 1);
+      fprintf(out, "Select List:\n");
+      print_ast(node->data.select_stmt.select_list, out, indent + 2);
     }
     if (node->data.select_stmt.where_clause) {
-      print_indent(indent + 1);
-      printf("WHERE:\n");
-      print_ast(node->data.select_stmt.where_clause, indent + 2);
+      print_indent(out, indent + 1);
+      fprintf(out, "WHERE:\n");
+      print_ast(node->data.select_stmt.where_clause, out, indent + 2);
+    }
+    if (node->data.select_stmt.group_by) {
+      print_indent(out, indent + 1);
+      fprintf(out, "GROUP BY:\n");
+      print_ast(node->data.select_stmt.group_by, out, indent + 2);
+    }
+    if (node->data.select_stmt.having) {
+      print_indent(out, indent + 1);
+      fprintf(out, "HAVING:\n");
+      print_ast(node->data.select_stmt.having, out, indent + 2);
     }
     if (node->data.select_stmt.order_by) {
-      print_indent(indent + 1);
-      printf("ORDER BY:\n");
-      print_ast(node->data.select_stmt.order_by, indent + 2);
+      print_indent(out, indent + 1);
+      fprintf(out, "ORDER BY:\n");
+      print_ast(node->data.select_stmt.order_by, out, indent + 2);
     }
     break;
 
   case NODE_CREATE_STMT:
-    printf("[CREATE TABLE STMT] Table: %s\n",
-           node->data.create_stmt.table_name);
-    print_ast(node->data.create_stmt.column_list, indent + 1);
+    fprintf(out, "[CREATE TABLE STMT] Table: %s\n",
+            node->data.create_stmt.table_name);
+    print_ast(node->data.create_stmt.column_list, out, indent + 1);
     break;
 
   case NODE_COLUMN_DEF:
-    printf("[COLUMN DEF] Name: %s, Type: %s (PK: %d, NOT NULL: %d)\n",
-           node->data.col_def.name, node->data.col_def.data_type,
-           node->data.col_def.is_primary_key, node->data.col_def.is_not_null);
+    fprintf(out, "[COLUMN DEF] Name: %s, Type: %s (PK: %d, NOT NULL: %d)\n",
+            node->data.col_def.name, node->data.col_def.data_type,
+            node->data.col_def.is_primary_key, node->data.col_def.is_not_null);
     break;
 
   case NODE_INSERT_STMT:
-    printf("[INSERT STMT] Table: %s\n", node->data.insert_stmt.table_name);
+    fprintf(out, "[INSERT STMT] Table: %s\n",
+            node->data.insert_stmt.table_name);
+
+    if (node->data.insert_stmt.column_list) {
+      print_indent(out, indent + 1);
+      fprintf(out, "Columns:\n");
+      print_ast(node->data.insert_stmt.column_list, out, indent + 2);
+    }
+
     if (node->data.insert_stmt.value_list) {
-      print_indent(indent + 1);
-      printf("Values:\n");
-      print_ast(node->data.insert_stmt.value_list, indent + 2);
+      print_indent(out, indent + 1);
+      fprintf(out, "Values:\n");
+      print_ast(node->data.insert_stmt.value_list, out, indent + 2);
     }
     break;
-
   case NODE_UPDATE_STMT:
-    printf("[UPDATE STMT] Table: %s\n", node->data.update_stmt.table_name);
-    print_indent(indent + 1);
-    printf("SET:\n");
-    print_ast(node->data.update_stmt.update_list, indent + 2);
+    fprintf(out, "[UPDATE STMT] Table: %s\n",
+            node->data.update_stmt.table_name);
+    print_indent(out, indent + 1);
+    fprintf(out, "SET:\n");
+    print_ast(node->data.update_stmt.update_list, out, indent + 2);
     if (node->data.update_stmt.where_clause) {
-      print_indent(indent + 1);
-      printf("WHERE:\n");
-      print_ast(node->data.update_stmt.where_clause, indent + 2);
+      print_indent(out, indent + 1);
+      fprintf(out, "WHERE:\n");
+      print_ast(node->data.update_stmt.where_clause, out, indent + 2);
     }
     break;
 
   case NODE_DELETE_STMT:
-    printf("[DELETE STMT] Table: %s\n", node->data.delete_stmt.table_name);
+    fprintf(out, "[DELETE STMT] Table: %s\n",
+            node->data.delete_stmt.table_name);
     if (node->data.delete_stmt.where_clause) {
-      print_indent(indent + 1);
-      printf("WHERE:\n");
-      print_ast(node->data.delete_stmt.where_clause, indent + 2);
+      print_indent(out, indent + 1);
+      fprintf(out, "WHERE:\n");
+      print_ast(node->data.delete_stmt.where_clause, out, indent + 2);
     }
     break;
 
   case NODE_DROP_STMT:
-    printf("[DROP TABLE STMT] Table: %s\n", node->data.drop_stmt.table_name);
+    fprintf(out, "[DROP TABLE STMT] Table: %s\n",
+            node->data.drop_stmt.table_name);
     break;
 
   case NODE_FUNC_CALL:
-    printf("[FUNC CALL] Name: %s\n",
-           node->data.func.name ? node->data.func.name : "NULL");
+    fprintf(out, "[FUNC CALL] Name: %s\n",
+            node->data.func.name ? node->data.func.name : "NULL");
     if (node->data.func.arg) {
-      print_ast(node->data.func.arg, indent + 1);
+      print_ast(node->data.func.arg, out, indent + 1);
     }
     break;
-
+  case NODE_PROGRAM:
+    fprintf(out, "[PROGRAM]\n");
+    if (node->data.program.stmts) {
+      print_ast(node->data.program.stmts, out, indent + 1);
+    }
+    break;
   default:
-    printf("[UNKNOWN NODE TYPE: %d]\n", node->type);
+    fprintf(out, "[UNKNOWN NODE TYPE: %d]\n", node->type);
     break;
   }
 
   if (node->next) {
-    print_ast(node->next, indent);
+    print_ast(node->next, out, indent);
   }
 }
 
@@ -612,6 +637,9 @@ void free_ast(ASTNode *node) {
   case NODE_DROP_STMT:
     if (node->data.drop_stmt.table_name)
       free(node->data.drop_stmt.table_name);
+    break;
+  case NODE_PROGRAM:
+    free_ast(node->data.program.stmts);
     break;
 
   default:

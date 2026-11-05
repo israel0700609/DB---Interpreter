@@ -9,3 +9,5 @@ db_compiler
 *.tab.h
 lex.yy.c
 *.output
+CMakeLists.txt
+interpreter
