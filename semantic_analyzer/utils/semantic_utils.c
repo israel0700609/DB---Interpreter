@@ -35,11 +35,59 @@ int type_checking(ColumnType left, ColumnType right) {
   if ((left == INT && right == FLOAT) || (left == FLOAT && right == INT)) {
     return 1;
   }
-
   if ((left == BOOL && right == INT) || (left == INT && right == BOOL)) {
     return 1;
   }
   return 0;
+}
+
+ColumnType analyze_function_call(Table *table, ASTNode *func_node) {
+  char *func_name = func_node->data.func.name;
+  ASTNode *arg = func_node->data.func.arg;
+
+  int is_star = 0;
+  if (arg != NULL && arg->type == NODE_IDENTIFIER &&
+      strcmp(arg->data.str_val, "*") == 0) {
+    is_star = 1;
+  }
+
+  if (is_star) {
+    if (strcmp(func_name, "COUNT") == 0) {
+      return INT;
+    } else {
+      fprintf(stderr,
+              "Semantic Error: Function '%s' cannot take '*' as an argument "
+              "(line %d).\n",
+              func_name, func_node->lineno);
+      exit(1);
+    }
+  }
+
+  ColumnType arg_type = evaluate_expression(table, arg);
+
+  if (strcmp(func_name, "SUM") == 0 || strcmp(func_name, "AVG") == 0) {
+    if (arg_type != INT && arg_type != FLOAT) {
+      fprintf(stderr,
+              "Semantic Error: Function '%s' requires numeric argument (line "
+              "%d).\n",
+              func_name, func_node->lineno);
+      exit(1);
+    }
+    return arg_type;
+  }
+
+  else if (strcmp(func_name, "COUNT") == 0 || strcmp(func_name, "MAX") == 0 ||
+           strcmp(func_name, "MIN") == 0) {
+    if (strcmp(func_name, "COUNT") == 0)
+      return INT;
+    return arg_type;
+  }
+
+  else {
+    fprintf(stderr, "Semantic Error: Unknown function '%s' at line %d.\n",
+            func_name, func_node->lineno);
+    exit(1);
+  }
 }
 
 void add_columns(Table *table, ASTNode *columns) {
@@ -144,7 +192,8 @@ ColumnType evaluate_expression(Table *current_table, ASTNode *expression) {
     char *col_name = expression->data.col_def.name;
     Column *col = find_column(current_table, col_name);
     if (!col) {
-      fprintf(stderr, "Semantic Error: Could not find column %s at table %s \n",
+      fprintf(stderr,
+              "Semantic Error: Could not find column '%s' at table '%s'\n",
               col_name, current_table->name);
       exit(1);
     }
@@ -153,16 +202,12 @@ ColumnType evaluate_expression(Table *current_table, ASTNode *expression) {
 
   case NODE_INT_LITERAL:
     return INT;
-
   case NODE_REAL_LITERAL:
     return FLOAT;
-
   case NODE_STRING_LITERAL:
     return TEXT;
-
   case NODE_BOOL_LITERAL:
     return BOOL;
-
   case NODE_NULL_LITERAL:
     return NULL_TYPE;
 
@@ -170,6 +215,9 @@ ColumnType evaluate_expression(Table *current_table, ASTNode *expression) {
   case NODE_UNARY_EXPR:
   case NODE_ASSIGNMENT:
     return analyze_expression(current_table, expression);
+
+  case NODE_FUNC_CALL:
+    return analyze_function_call(current_table, expression);
 
   default:
     fprintf(stderr, "Semantic Error: Unknown expression node type.\n");
@@ -192,7 +240,8 @@ ColumnType analyze_expression(Table *current_table, ASTNode *expression) {
     if (strcmp(op, "+") == 0 || strcmp(op, "-") == 0 || strcmp(op, "*") == 0 ||
         strcmp(op, "/") == 0) {
 
-      if ((left != INT && left != FLOAT) || (right != INT && right != FLOAT)) {
+      if ((left != INT && left != FLOAT && left != NULL_TYPE) ||
+          (right != INT && right != FLOAT && right != NULL_TYPE)) {
         fprintf(stderr,
                 "Semantic Error: Type Mismatch - left type(%s) op(%s) right "
                 "type(%s) at line(%d)\n",
@@ -201,10 +250,12 @@ ColumnType analyze_expression(Table *current_table, ASTNode *expression) {
         exit(1);
       }
 
-      if (left == FLOAT || right == FLOAT) {
+      if (left == NULL_TYPE || right == NULL_TYPE)
+        return NULL_TYPE;
+      if (left == FLOAT || right == FLOAT)
         return FLOAT;
-      }
       return INT;
+
     } else if (strcmp(op, "%") == 0) {
       if (left != INT || right != INT) {
         fprintf(stderr,
@@ -215,11 +266,35 @@ ColumnType analyze_expression(Table *current_table, ASTNode *expression) {
         exit(1);
       }
       return INT;
-    } else {
-      if (!type_checking(left, right)) {
+
+    } else if (strcmp(op, "AND") == 0 || strcmp(op, "OR") == 0) {
+      if ((left != INT && left != BOOL && left != NULL_TYPE) ||
+          (right != INT && right != BOOL && right != NULL_TYPE)) {
         fprintf(stderr,
                 "Semantic Error: Type Mismatch - left(%s) op(%s) right(%s) at "
                 "line(%d)\n",
+                column_type_to_string(left), op, column_type_to_string(right),
+                expression->lineno);
+        exit(1);
+      }
+      return BOOL;
+
+    } else if (strcmp(op, "CONCAT") == 0) {
+      if (left != TEXT || right != TEXT) {
+        fprintf(stderr,
+                "Semantic Error: Type Mismatch - left(%s) op(%s) right(%s) at "
+                "line(%d)\n",
+                column_type_to_string(left), op, column_type_to_string(right),
+                expression->lineno);
+        exit(1);
+      }
+      return TEXT;
+
+    } else {
+      if (!type_checking(left, right)) {
+        fprintf(stderr,
+                "Semantic Error: Type Mismatch - "
+                "left(%s) op(%s) right(%s) at line(%d)\n",
                 column_type_to_string(left), op, column_type_to_string(right),
                 expression->lineno);
         exit(1);
@@ -242,6 +317,7 @@ ColumnType analyze_expression(Table *current_table, ASTNode *expression) {
         exit(1);
       }
       return operand;
+
     } else if (strcmp(op, "!") == 0) {
       if (operand != BOOL) {
         fprintf(
@@ -251,6 +327,7 @@ ColumnType analyze_expression(Table *current_table, ASTNode *expression) {
         exit(1);
       }
       return BOOL;
+
     } else if (strcmp(op, "IS_NULL") == 0 || strcmp(op, "IS_NOT_NULL") == 0) {
       return BOOL;
     }
@@ -259,7 +336,6 @@ ColumnType analyze_expression(Table *current_table, ASTNode *expression) {
   else if (expression->type == NODE_ASSIGNMENT) {
     ColumnType lhs = evaluate_expression(
         current_table, expression->data.assignment.identifier);
-
     ColumnType rhs =
         evaluate_expression(current_table, expression->data.assignment.expr);
 
@@ -270,8 +346,537 @@ ColumnType analyze_expression(Table *current_table, ASTNode *expression) {
               expression->lineno);
       exit(1);
     }
-
     return lhs;
   }
   return NULL_TYPE;
+}
+
+int has_aggregate_function(ASTNode *columns) {
+  ASTNode *current = columns;
+  while (current) {
+    if (current->type == NODE_FUNC_CALL) {
+      return 1;
+    }
+    current = current->next;
+  }
+  return 0;
+}
+
+int check_aggregate_query(ASTNode *group_by, ASTNode *columns) {
+  return (group_by != NULL) || has_aggregate_function(columns);
+}
+
+int is_literal(ASTNode *column) {
+  NodeType type = column->type;
+  return (type == NODE_INT_LITERAL) || (type == NODE_BOOL_LITERAL) ||
+         (type == NODE_REAL_LITERAL) || (type == NODE_STRING_LITERAL) ||
+         (type == NODE_NULL_LITERAL);
+}
+
+int is_in_group_by(ASTNode *group_by, ASTNode *id) {
+  ASTNode *current = group_by;
+  while (current) {
+    if (current->type == NODE_IDENTIFIER) {
+      if (strcmp(current->data.str_val, id->data.str_val) == 0) {
+        return 1;
+      }
+    }
+    current = current->next;
+  }
+  return 0;
+}
+
+int validate_aggregate_column(ASTNode *group_by, ASTNode *column) {
+  if (is_literal(column)) {
+    return 1;
+  }
+  if (column->type == NODE_FUNC_CALL) {
+    return 1;
+  }
+  if (column->type == NODE_IDENTIFIER) {
+    return is_in_group_by(group_by, column);
+  }
+  return 0;
+}
+
+void validate_where(Table *table, ASTNode *where_caluse) {
+  if (!validate_where_clause(where_caluse)) {
+    fprintf(stderr,
+            "Semantic Error: Aggregate functions are not allowed in WHERE "
+            "clause at line %d.\n",
+            where_caluse->lineno);
+    exit(1);
+  }
+
+  ColumnType type = evaluate_expression(table, where_caluse);
+  if (type != BOOL && type != INT) {
+    fprintf(stderr,
+            "Semantic Error: Type Mismatch at WHERE clause at line (%d). "
+            "Expected BOOL/INT, got %s.\n",
+            where_caluse->lineno, column_type_to_string(type));
+    exit(1);
+  }
+}
+
+int validate_where_clause(ASTNode *clause) {
+  if (!clause)
+    return 1;
+
+  if (is_literal(clause))
+    return 1;
+
+  if (clause->type == NODE_FUNC_CALL) {
+    return 0;
+  }
+
+  if (clause->type == NODE_BINARY_EXPR) {
+    return validate_where_clause(clause->data.binary.left) &&
+           validate_where_clause(clause->data.binary.right);
+  }
+  if (clause->type == NODE_UNARY_EXPR) {
+    return validate_where_clause(clause->data.unary.operand);
+  }
+
+  return 1;
+}
+
+int validate_having_clause(ASTNode *group_by, ASTNode *clause) {
+  if (!clause)
+    return 1;
+
+  if (is_literal(clause))
+    return 1;
+
+  if (clause->type == NODE_FUNC_CALL) {
+    return 1;
+  }
+
+  if (clause->type == NODE_IDENTIFIER && !is_in_group_by(group_by, clause)) {
+    return 0;
+  }
+
+  if (clause->type == NODE_BINARY_EXPR) {
+    return validate_having_clause(group_by, clause->data.binary.left) &&
+           validate_having_clause(group_by, clause->data.binary.right);
+  }
+  if (clause->type == NODE_UNARY_EXPR) {
+    return validate_having_clause(group_by, clause->data.unary.operand);
+  }
+
+  return 1;
+}
+
+void check_select_semantics(ASTNode *select_node, SymbolTable *symbol_table) {
+  SelectStmt select_stmt = select_node->data.select_stmt;
+  char *tableName = select_stmt.from_table;
+  ASTNode *columns = select_stmt.select_list;
+  ASTNode *whereClause = select_stmt.where_clause;
+  ASTNode *groupBy = select_stmt.group_by;
+  ASTNode *having = select_stmt.having;
+  ASTNode *orderBy = select_stmt.order_by;
+  int limitVal = select_stmt.limit_val;
+  Table *table = find_table(symbol_table, tableName);
+  if (!table) {
+    fprintf(stderr, "Semantic Error: Table '%s' does not exist.\n", tableName);
+    exit(1);
+  }
+
+  ASTNode *current = columns;
+  int is_aggregate_query = check_aggregate_query(groupBy, columns);
+
+  while (current) {
+    if (current->type == NODE_IDENTIFIER &&
+        strcmp(current->data.str_val, "*") == 0) {
+      if (is_aggregate_query) {
+        fprintf(
+            stderr,
+            "Semantic Error: Cannot use '*' in SELECT list with GROUP BY.\n");
+        exit(1);
+      }
+      current = current->next;
+      continue;
+    }
+    if (is_aggregate_query) {
+      if (!validate_aggregate_column(groupBy, current)) {
+        fprintf(stderr,
+                "Semantic Error: Column '%s' must appear in GROUP BY or be "
+                "used in an aggregate function (line %d).\n",
+                current->data.str_val, current->lineno);
+        exit(1);
+      }
+    }
+
+    ColumnType type = evaluate_expression(table, current);
+
+    if (type == NULL_TYPE && current->type != NODE_NULL_LITERAL) {
+      fprintf(stderr,
+              "Semantic Error: Invalid expression in SELECT at line %d\n",
+              current->lineno);
+      exit(1);
+    }
+    current = current->next;
+  }
+
+  if (whereClause) {
+    validate_where(table, whereClause);
+  }
+
+  if (groupBy) {
+    ASTNode *current_gb = groupBy;
+    while (current_gb) {
+      evaluate_expression(table, current_gb);
+
+      if (current_gb->type == NODE_FUNC_CALL) {
+        fprintf(stderr,
+                "Semantic Error: Aggregate function is not allowed in GROUP BY "
+                "clause at line %d.\n",
+                current_gb->lineno);
+        exit(1);
+      }
+      current_gb = current_gb->next;
+    }
+  }
+
+  if (having) {
+    if (!validate_having_clause(groupBy, having)) {
+      fprintf(stderr,
+              "Semantic Error: Column in HAVING clause must appear in the "
+              "GROUP BY clause at line %d.\n",
+              having->lineno);
+      exit(1);
+    }
+
+    ColumnType type = evaluate_expression(table, having);
+    if (type != BOOL && type != INT) {
+      fprintf(stderr,
+              "Semantic Error: Type Mismatch at HAVING clause at line (%d). "
+              "Expected BOOL/INT, got %s.\n",
+              having->lineno, column_type_to_string(type));
+      exit(1);
+    }
+  }
+
+  if (orderBy) {
+    ASTNode *current_ob = orderBy;
+    while (current_ob) {
+      evaluate_expression(table, current_ob);
+
+      if (is_aggregate_query && !validate_having_clause(groupBy, current_ob)) {
+        fprintf(stderr,
+                "Semantic Error: Column in ORDER BY must appear in the GROUP "
+                "BY clause at line %d.\n",
+                current_ob->lineno);
+        exit(1);
+      }
+      current_ob = current_ob->next;
+    }
+  }
+
+  if (limitVal < 0 && limitVal != -1) {
+    fprintf(stderr,
+            "Semantic Error: Limit val must be a non-negative integer value"
+            "at table %s.\n",
+            table->name);
+    exit(1);
+  }
+}
+
+int count_ast_nodes(ASTNode *node_list) {
+  int count = 0;
+  ASTNode *current = node_list;
+  while (current) {
+    count++;
+    current = current->next;
+  }
+  return count;
+}
+
+int count_columns(Column *columns) {
+  int count = 0;
+  Column *current = columns;
+  while (current) {
+    count++;
+    current = current->next;
+  }
+  return count;
+}
+
+void check_is_null_value(Column *column, ColumnType value_type, int lineno) {
+  if (column->is_not_null && value_type == NULL_TYPE) {
+    fprintf(stderr,
+            "Semantic Error: NULL is not allowed. Column '%s' has "
+            "NOT NULL constraint at line(%d).\n",
+            column->name, lineno);
+    exit(1);
+  }
+}
+
+void validate_non_null_columns(Column *columns, ASTNode *column_list,
+                               int lineno) {
+  Column *tableCol = columns;
+  while (tableCol) {
+    if (tableCol->is_not_null) {
+      ASTNode *currCol = column_list;
+      int found = 0;
+      while (currCol) {
+        if (currCol->type == NODE_IDENTIFIER &&
+            strcmp(currCol->data.str_val, tableCol->name) == 0) {
+          found = 1;
+          break;
+        }
+        currCol = currCol->next;
+      }
+      if (!found) {
+        fprintf(stderr,
+                "Semantic Error: Field '%s' has a NOT NULL constraint and is "
+                "missing from INSERT column list (line %d).\n",
+                tableCol->name, lineno);
+        exit(1);
+      }
+    }
+    tableCol = tableCol->next;
+  }
+}
+
+Column *convert_ast_column_to_Columns(Table *table, ASTNode *columns) {
+  Column *head = (Column *)malloc(sizeof(Column));
+  if (!head) {
+    fprintf(stderr, "Memory allocation failed\n");
+    exit(1);
+  }
+  head->next = NULL;
+
+  ASTNode *current = columns;
+  Column *currentHead = head;
+
+  while (current) {
+    Column *original_col = find_column(table, current->data.str_val);
+    if (!original_col) {
+      fprintf(stderr, "Semantic Error: Column '%s' not found in table '%s'\n",
+              current->data.str_val, table->name);
+      exit(1);
+    }
+
+    Column *new_col = (Column *)malloc(sizeof(Column));
+    if (!new_col) {
+      fprintf(stderr, "Memory allocation failed\n");
+      exit(1);
+    }
+
+    new_col->name = strdup(original_col->name);
+    new_col->type = original_col->type;
+    new_col->is_primary_key = original_col->is_primary_key;
+    new_col->is_not_null = original_col->is_not_null;
+    new_col->next = NULL;
+
+    currentHead->next = new_col;
+    currentHead = currentHead->next;
+    current = current->next;
+  }
+
+  Column *real_head = head->next;
+  free(head);
+  return real_head;
+}
+void validate_values_columns(Table *table, Column *columns,
+                             ASTNode *values_list) {
+  Column *currentTableCol = columns;
+  ASTNode *valuesCurrent = values_list;
+
+  while (currentTableCol && valuesCurrent) {
+    ColumnType valuesType = evaluate_expression(table, valuesCurrent);
+
+    check_is_null_value(currentTableCol, valuesType, values_list->lineno);
+
+    if (!type_checking(currentTableCol->type, valuesType)) {
+      fprintf(stderr,
+              "Semantic Error: Type Mismatch (Insert statement). Column '%s' "
+              "expects type(%s) but got value type(%s) at line %d.\n",
+              currentTableCol->name,
+              column_type_to_string(currentTableCol->type),
+              column_type_to_string(valuesType), values_list->lineno);
+      exit(1);
+    }
+
+    currentTableCol = currentTableCol->next;
+    valuesCurrent = valuesCurrent->next;
+  }
+}
+
+void validate_values_list(Table *table, Column *column_list,
+                          ASTNode *values_list) {
+
+  int columnCount = count_columns(column_list);
+  int valuesCount = count_ast_nodes(values_list);
+  int countTableCols = count_columns(table->columns);
+
+  if (column_list) {
+    if (columnCount != valuesCount) {
+      fprintf(stderr,
+              "Semantic Error: Insert statement: Mismatch in columns list. "
+              "columns count(%d) values count(%d) at line(%d).\n",
+              columnCount, valuesCount, values_list->lineno);
+      exit(1);
+    }
+    validate_values_columns(table, column_list, values_list);
+  } else {
+    if (valuesCount != countTableCols) {
+      fprintf(
+          stderr,
+          "Semantic Error: Insert mismatch. Table '%s' has %d columns, but %d "
+          "values provided (line %d).\n",
+          table->name, countTableCols, valuesCount, values_list->lineno);
+      exit(1);
+    }
+
+    validate_values_columns(table, table->columns, values_list);
+  }
+}
+
+void check_insert_semantics(ASTNode *insert_node, SymbolTable *symbol_table) {
+  char *tableName = insert_node->data.insert_stmt.table_name;
+  ASTNode *valueList = insert_node->data.insert_stmt.value_list;
+
+  Table *table = find_table(symbol_table, tableName);
+  if (!table) {
+    fprintf(stderr, "Semantic Error: Table '%s' does not exist.\n", tableName);
+    exit(1);
+  }
+
+  Column *columnList = convert_ast_column_to_Columns(
+      table, insert_node->data.insert_stmt.column_list);
+
+  if (!valueList) {
+    fprintf(
+        stderr,
+        "Semantic Error: Insert statement missing values list at line %d.\n",
+        insert_node->lineno);
+    exit(1);
+  }
+
+  if (columnList) {
+    validate_non_null_columns(table->columns,
+                              insert_node->data.insert_stmt.column_list,
+                              insert_node->lineno);
+    validate_values_list(table, columnList, valueList);
+  } else {
+    validate_values_list(table, columnList, valueList);
+  }
+}
+
+int validate_expression_no_aggregates(ASTNode *expr) {
+  if (!expr)
+    return 1;
+
+  if (expr->type == NODE_FUNC_CALL) {
+    return 0;
+  }
+
+  if (expr->type == NODE_BINARY_EXPR) {
+    return validate_expression_no_aggregates(expr->data.binary.left) &&
+           validate_expression_no_aggregates(expr->data.binary.right);
+  }
+
+  if (expr->type == NODE_UNARY_EXPR) {
+    return validate_expression_no_aggregates(expr->data.unary.operand);
+  }
+
+  return 1;
+}
+
+void validate_update_list(Table *table, ASTNode *update_list) {
+  ASTNode *current = update_list;
+
+  while (current) {
+    if (current->type != NODE_ASSIGNMENT) {
+      fprintf(stderr,
+              "Semantic Error: Expected assignment in UPDATE SET clause at "
+              "line %d.\n",
+              current->lineno);
+      exit(1);
+    }
+
+    ASTNode *id_node = current->data.assignment.identifier;
+    ASTNode *expr_node = current->data.assignment.expr;
+
+    char *colName = id_node->data.str_val;
+    Column *tableCol = find_column(table, colName);
+
+    if (!validate_expression_no_aggregates(expr_node)) {
+      fprintf(stderr,
+              "Semantic Error: Aggregate functions are not allowed in UPDATE "
+              "SET clause at line %d.\n",
+              current->lineno);
+      exit(1);
+    }
+
+    ColumnType lhsType = evaluate_expression(table, id_node);
+    ColumnType rhsType = evaluate_expression(table, expr_node);
+
+    check_is_null_value(tableCol, rhsType, current->lineno);
+
+    if (!type_checking(lhsType, rhsType)) {
+      fprintf(stderr,
+              "Semantic Error: Type Mismatch (Update statement). Column '%s' "
+              "expects type(%s) but got expression type(%s) at line %d.\n",
+              tableCol->name, column_type_to_string(lhsType),
+              column_type_to_string(rhsType), current->lineno);
+      exit(1);
+    }
+
+    current = current->next;
+  }
+}
+
+void check_update_semantics(ASTNode *update_node, SymbolTable *symbol_table) {
+  char *tableName = update_node->data.update_stmt.table_name;
+  ASTNode *updateList = update_node->data.update_stmt.update_list;
+  ASTNode *whereClause = update_node->data.update_stmt.where_clause;
+
+  Table *table = find_table(symbol_table, tableName);
+  if (!table) {
+    fprintf(stderr, "Semantic Error: Table '%s' does not exist.\n", tableName);
+    exit(1);
+  }
+
+  if (!updateList) {
+    fprintf(
+        stderr,
+        "Semantic Error: Update statement missing update list at line %d.\n",
+        update_node->lineno);
+    exit(1);
+  }
+
+  validate_update_list(table, updateList);
+
+  if (whereClause) {
+    validate_where(table, whereClause);
+  }
+}
+
+void check_delete_semantics(ASTNode *delete_node, SymbolTable *symbol_table) {
+  char *tableName = delete_node->data.delete_stmt.table_name;
+  ASTNode *whereClause = delete_node->data.delete_stmt.where_clause;
+
+  Table *table = find_table(symbol_table, tableName);
+  if (!table) {
+    fprintf(stderr, "Semantic Error: Table '%s' does not exist.\n", tableName);
+    exit(1);
+  }
+
+  if (whereClause) {
+    validate_where(table, whereClause);
+  }
+}
+
+void check_drop_statement(ASTNode *drop_node, SymbolTable *symbol_table) {
+  char *tableName = drop_node->data.drop_stmt.table_name;
+
+  Table *table = find_table(symbol_table, tableName);
+  if (!table) {
+    fprintf(stderr, "Semantic Error: Table '%s' does not exist.\n", tableName);
+    exit(1);
+  }
+
+  drop_table(symbol_table, tableName);
 }

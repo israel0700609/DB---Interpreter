@@ -57,6 +57,56 @@ Table *add_table(SymbolTable *st, char *name) {
   return new_table;
 }
 
+void free_single_table(Table *table) {
+  if (!table)
+    return;
+
+  Column *curr_col = table->columns;
+  while (curr_col) {
+    Column *next_col = curr_col->next;
+    if (curr_col->name)
+      free(curr_col->name);
+    free(curr_col);
+    curr_col = next_col;
+  }
+
+  if (table->name)
+    free(table->name);
+  free(table);
+}
+
+void drop_table(SymbolTable *st, char *name) {
+  if (!st || !st->tables) {
+    fprintf(stderr, "Semantic Error: Table '%s' does not exist to drop.\n",
+            name);
+    exit(1);
+  }
+
+  if (strcmp(st->tables->name, name) == 0) {
+    Table *to_delete = st->tables;
+    st->tables = st->tables->next;
+
+    free_single_table(to_delete);
+    return;
+  }
+
+  Table *current = st->tables;
+  while (current->next) {
+    if (strcmp(current->next->name, name) == 0) {
+      Table *to_delete = current->next;
+
+      current->next = to_delete->next;
+
+      free_single_table(to_delete);
+      return;
+    }
+    current = current->next;
+  }
+
+  fprintf(stderr, "Semantic Error: Table '%s' not found to drop.\n", name);
+  exit(1);
+}
+
 Column *find_column(Table *table, char *name) {
   if (!table || !name) {
     return NULL;
