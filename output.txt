@@ -2,86 +2,17 @@
  Abstract Syntax Tree: 
 [PROGRAM]
   [CREATE TABLE STMT] Table: employees
-    [COLUMN DEF] Name: id, Type: INT (PK: 1, NOT NULL: 0)
+    [COLUMN DEF] Name: id, Type: INT (PK: 1, NOT NULL: 1)
     [COLUMN DEF] Name: name, Type: TEXT (PK: 0, NOT NULL: 1)
     [COLUMN DEF] Name: salary, Type: FLOAT (PK: 0, NOT NULL: 0)
-    [COLUMN DEF] Name: is_active, Type: BOOL (PK: 0, NOT NULL: 0)
-  [INSERT STMT] Table: employees
-    Columns:
-      [IDENTIFIER] id
-      [IDENTIFIER] name
-      [IDENTIFIER] salary
-      [IDENTIFIER] is_active
-    Values:
-      [INT] 101
-      [STRING] "Alice"
-      [REAL] 7500.500000
-      [BOOL] TRUE
+    [COLUMN DEF] Name: is_manager, Type: BOOL (PK: 0, NOT NULL: 0)
   [UPDATE STMT] Table: employees
     SET:
       [ASSIGNMENT]
-        [IDENTIFIER] salary
-        [BINARY EXPR] Op: *
-          [IDENTIFIER] salary
-          [REAL] 1.100000
+        [IDENTIFIER] is_manager
+        [INT] 100
     WHERE:
-      [BINARY EXPR] Op: AND
-        [BINARY EXPR] Op: =
-          [IDENTIFIER] is_active
-          [BOOL] TRUE
-        [BINARY EXPR] Op: <
-          [IDENTIFIER] salary
-          [REAL] 10000.000000
-  [BINARY EXPR] Op: UNION
-    [SELECT STMT] Table: employees, Distinct: 1, Limit: 50
-      Select List:
-        [IDENTIFIER] name
-        [BINARY EXPR] Op: /
-          [BINARY EXPR] Op: *
-            [FUNC CALL] Name: SUM
-              [IDENTIFIER] salary
-            [INT] 12
-          [INT] 2
-        [FUNC CALL] Name: COUNT
-      WHERE:
-        [BINARY EXPR] Op: OR
-          [BINARY EXPR] Op: AND
-            [BINARY EXPR] Op: GTE
-              [IDENTIFIER] salary
-              [REAL] 5000.000000
-            [BINARY EXPR] Op: =
-              [UNARY EXPR] Op: !
-                [IDENTIFIER] is_active
-              [BOOL] FALSE
-          [UNARY EXPR] Op: IS_NOT_NULL
-            [IDENTIFIER] salary
-      GROUP BY:
-        [IDENTIFIER] name
-        [IDENTIFIER] is_active
-      HAVING:
-        [BINARY EXPR] Op: >
-          [FUNC CALL] Name: AVG
-            [IDENTIFIER] salary
-          [REAL] 3000.000000
-      ORDER BY:
-        [ORDER BY ITEM] DESC
-          [IDENTIFIER] salary
-        [ORDER BY ITEM] ASC
-          [IDENTIFIER] name
-    [SELECT STMT] Table: employees, Distinct: 0, Limit: -1
-      Select List:
-        [IDENTIFIER] name
-        [IDENTIFIER] salary
-        [INT] 0
-      WHERE:
-        [BINARY EXPR] Op: =
-          [IDENTIFIER] is_active
-          [BOOL] FALSE
-  [DELETE STMT] Table: employees
-    WHERE:
-      [BINARY EXPR] Op: AND
-        [BINARY EXPR] Op: =
-          [IDENTIFIER] is_active
-          [BOOL] FALSE
-        [UNARY EXPR] Op: IS_NULL
-          [IDENTIFIER] salary
+      [BINARY EXPR] Op: =
+        [IDENTIFIER] id
+        [INT] 1
+Semantics analyzing successful.

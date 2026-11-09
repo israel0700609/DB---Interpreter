@@ -160,6 +160,7 @@ HEX        [0-9a-fA-F]
 "!="                { return NEQ; }
 ">="                { return GTE; }
 "<="                { return LTE; }
+"||"                { return CONCAT;}
 
 
 "+"|"-"|"/"|"*"|"%"|";"|","|"("|")"|">"|"<" {

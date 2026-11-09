@@ -27,6 +27,8 @@ SymbolTable *create_symbol_table();
 
 Table *add_table(SymbolTable *st, char *name);
 
+void drop_table(SymbolTable *st, char *name);
+
 int add_column_to_table(Table *table, char *name, ColumnType type, int is_pk,
                         int is_nn);
 Table *find_table(SymbolTable *st, char *name);

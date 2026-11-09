@@ -4,7 +4,7 @@
 #include <stdlib.h> 
 #include <string.h> 
 #include "ast/ast.h" 
-
+#include "semantic_analyzer/analyzer.h"
 
 extern int yylineno;
 extern char* yytext; 
@@ -42,7 +42,7 @@ void yyerror(const char* s);
 
 /* Operators & ID */
 %token <str_val> IDENTIFIER 
-%token EQ NEQ GTE LTE
+%token EQ NEQ GTE LTE CONCAT
 %token AND OR NOT IN IS
 
 %type <node_val> program statements statement stmt select_stmt select_base_stmt select_list where_clause group_by having order_by group_by_list order_by_list order_item create_stmt column_def_list column_def insert_stmt insert_order insert_order_list values_list update_stmt update_list assignment delete_stmt drop_stmt expression 
@@ -57,7 +57,7 @@ void yyerror(const char* s);
 %left OR
 %left AND
 %left EQ NEQ
-%left '>' '<' GTE LTE IS
+%left '>' '<' GTE LTE IS CONCAT
 %left '+' '-' '%'
 %left '*' '/'
 %right UPLUS UMINUS 
@@ -341,6 +341,11 @@ expression:
             $$ = create_binary_expr_node("LTE", $1, $3, yylineno);
         }
     |
+        expression CONCAT expression 
+        {
+            $$ = create_binary_expr_node("CONCAT", $1, $3, yylineno);
+        }
+    |
         expression '+' expression 
         {
             $$ = create_binary_expr_node("+", $1, $3, yylineno);
@@ -407,7 +412,11 @@ expression:
             $$ = create_func_call_node($1, $3, yylineno);
         }
     |
-        COUNT '(' '*' ')' { $$ = create_func_call_node("COUNT", NULL, yylineno); }
+        COUNT '(' '*' ')' 
+        { 
+            ASTNode *star_node = create_identifier_node("*", yylineno);
+            $$ = create_func_call_node("COUNT", star_node, yylineno); 
+        }    
     |
         COUNT '(' expression ')'
         {
@@ -474,10 +483,16 @@ int main(int argc, char** argv){
         print_ast(root, out, 0);
     }
 
+    run_semantics(root);
+
+    fprintf(out, "Semantics analyzing successful.\n");
+
     if(out != stdout){
         fclose(out);
     }
 
+
+    free_ast(root);
     
     return 0; 
 }
