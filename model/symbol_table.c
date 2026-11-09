@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+extern const char *current_filename;
+
 SymbolTable *create_symbol_table() {
   SymbolTable *symbol_table = (SymbolTable *)malloc(sizeof(SymbolTable));
   if (!symbol_table) {
@@ -77,8 +79,9 @@ void free_single_table(Table *table) {
 
 void drop_table(SymbolTable *st, char *name) {
   if (!st || !st->tables) {
-    fprintf(stderr, "Semantic Error: Table '%s' does not exist to drop.\n",
-            name);
+    fprintf(stderr,
+            "Semantic Error in '%s': Table '%s' does not exist to drop.\n",
+            current_filename, name);
     exit(1);
   }
 
@@ -103,7 +106,8 @@ void drop_table(SymbolTable *st, char *name) {
     current = current->next;
   }
 
-  fprintf(stderr, "Semantic Error: Table '%s' not found to drop.\n", name);
+  fprintf(stderr, "Semantic Error in '%s': Table '%s' not found to drop.\n",
+          current_filename, name);
   exit(1);
 }
 

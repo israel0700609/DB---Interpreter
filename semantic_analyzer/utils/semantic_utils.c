@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+extern const char *current_filename;
+
 const char *column_type_to_string(ColumnType type) {
   switch (type) {
   case INT:
@@ -56,9 +58,9 @@ ColumnType analyze_function_call(Table *table, ASTNode *func_node) {
       return INT;
     } else {
       fprintf(stderr,
-              "Semantic Error: Function '%s' cannot take '*' as an argument "
-              "(line %d).\n",
-              func_name, func_node->lineno);
+              "Semantic Error in '%s' at line %d: Function '%s' cannot take "
+              "'*' as an argument.\n",
+              current_filename, func_node->lineno, func_name);
       exit(1);
     }
   }
@@ -68,9 +70,9 @@ ColumnType analyze_function_call(Table *table, ASTNode *func_node) {
   if (strcmp(func_name, "SUM") == 0 || strcmp(func_name, "AVG") == 0) {
     if (arg_type != INT && arg_type != FLOAT) {
       fprintf(stderr,
-              "Semantic Error: Function '%s' requires numeric argument (line "
-              "%d).\n",
-              func_name, func_node->lineno);
+              "Semantic Error in '%s' at line %d: Function '%s' requires "
+              "numeric argument.\n",
+              current_filename, func_node->lineno, func_name);
       exit(1);
     }
     return arg_type;
@@ -84,16 +86,18 @@ ColumnType analyze_function_call(Table *table, ASTNode *func_node) {
   }
 
   else {
-    fprintf(stderr, "Semantic Error: Unknown function '%s' at line %d.\n",
-            func_name, func_node->lineno);
+    fprintf(stderr,
+            "Semantic Error in '%s' at line %d: Unknown function '%s'.\n",
+            current_filename, func_node->lineno, func_name);
     exit(1);
   }
 }
 
 void add_columns(Table *table, ASTNode *columns) {
   if (!columns) {
-    fprintf(stderr, "Semantic Error: Table %s has no columns defined.\n",
-            table->name);
+    fprintf(stderr,
+            "Semantic Error in '%s': Table '%s' has no columns defined.\n",
+            current_filename, table->name);
     exit(1);
   }
 
@@ -106,9 +110,9 @@ void add_columns(Table *table, ASTNode *columns) {
     if (colDef.is_primary_key) {
       if (has_primary_key) {
         fprintf(stderr,
-                "Semantic Error: Table '%s' cannot have multiple primary keys "
-                "(conflict on column '%s').\n",
-                table->name, colDef.name);
+                "Semantic Error in '%s': Table '%s' cannot have multiple "
+                "primary keys (conflict on column '%s').\n",
+                current_filename, table->name, colDef.name);
         exit(1);
       }
       has_primary_key = 1;
@@ -116,10 +120,10 @@ void add_columns(Table *table, ASTNode *columns) {
 
     if (!is_valid_column_type(colDef.data_type)) {
       fprintf(stderr,
-              "Semantic Error: Unknown data type '%s' for column '%s' in table "
-              "'%s'.\n",
-              colDef.data_type ? colDef.data_type : "NULL", colDef.name,
-              table->name);
+              "Semantic Error in '%s': Unknown data type '%s' for column '%s' "
+              "in table '%s'.\n",
+              current_filename, colDef.data_type ? colDef.data_type : "NULL",
+              colDef.name, table->name);
       exit(1);
     }
 
@@ -127,9 +131,10 @@ void add_columns(Table *table, ASTNode *columns) {
 
     if (!add_column_to_table(table, colDef.name, cType, colDef.is_primary_key,
                              colDef.is_not_null)) {
-      fprintf(stderr,
-              "Semantic Error: Duplicate column name '%s' in table '%s'.\n",
-              colDef.name, table->name);
+      fprintf(
+          stderr,
+          "Semantic Error in '%s': Duplicate column name '%s' in table '%s'.\n",
+          current_filename, colDef.name, table->name);
       exit(1);
     }
 
@@ -137,38 +142,35 @@ void add_columns(Table *table, ASTNode *columns) {
   }
 }
 
-SymbolTable *build_symbol_table(ASTNode *root) {
+SymbolTable *build_symbol_table(ASTNode *root, SymbolTable *existing_st) {
   if (!root) {
-    return NULL;
+    return existing_st;
   }
 
-  SymbolTable *symbol_table = create_symbol_table();
+  SymbolTable *symbol_table = existing_st ? existing_st : create_symbol_table();
 
   ASTNode *current = root;
   if (current->type == NODE_PROGRAM) {
     current = current->data.program.stmts;
   }
 
-  NodeType currentType;
-  char *currentName;
   while (current) {
-    currentType = current->type;
-
-    if (currentType == NODE_CREATE_STMT) {
-      currentName = current->data.create_stmt.table_name;
+    if (current->type == NODE_CREATE_STMT) {
+      char *currentName = current->data.create_stmt.table_name;
 
       if (find_table(symbol_table, currentName)) {
         fprintf(stderr,
-                "Semantic Error: Could not create table %s (table already "
-                "exists).\n",
-                currentName);
+                "Semantic Error in '%s': Could not create table '%s' (table "
+                "already exists).\n",
+                current_filename, currentName);
         exit(1);
       }
 
       Table *table = add_table(symbol_table, currentName);
       if (!table) {
-        fprintf(stderr, "Semantic Error: Could not create table %s \n",
-                currentName);
+        fprintf(stderr,
+                "Semantic Error in '%s': Could not create table '%s'.\n",
+                current_filename, currentName);
         exit(1);
       }
 
@@ -192,9 +194,10 @@ ColumnType evaluate_expression(Table *current_table, ASTNode *expression) {
     char *col_name = expression->data.col_def.name;
     Column *col = find_column(current_table, col_name);
     if (!col) {
-      fprintf(stderr,
-              "Semantic Error: Could not find column '%s' at table '%s'\n",
-              col_name, current_table->name);
+      fprintf(
+          stderr,
+          "Semantic Error in '%s': Could not find column '%s' in table '%s'.\n",
+          current_filename, col_name, current_table->name);
       exit(1);
     }
     return col->type;
@@ -220,7 +223,8 @@ ColumnType evaluate_expression(Table *current_table, ASTNode *expression) {
     return analyze_function_call(current_table, expression);
 
   default:
-    fprintf(stderr, "Semantic Error: Unknown expression node type.\n");
+    fprintf(stderr, "Semantic Error in '%s': Unknown expression node type.\n",
+            current_filename);
     exit(1);
   }
 }
@@ -243,10 +247,10 @@ ColumnType analyze_expression(Table *current_table, ASTNode *expression) {
       if ((left != INT && left != FLOAT && left != NULL_TYPE) ||
           (right != INT && right != FLOAT && right != NULL_TYPE)) {
         fprintf(stderr,
-                "Semantic Error: Type Mismatch - left type(%s) op(%s) right "
-                "type(%s) at line(%d)\n",
-                column_type_to_string(left), op, column_type_to_string(right),
-                expression->lineno);
+                "Semantic Error in '%s' at line %d: Type Mismatch - left "
+                "type(%s) op(%s) right type(%s).\n",
+                current_filename, expression->lineno,
+                column_type_to_string(left), op, column_type_to_string(right));
         exit(1);
       }
 
@@ -259,10 +263,10 @@ ColumnType analyze_expression(Table *current_table, ASTNode *expression) {
     } else if (strcmp(op, "%") == 0) {
       if (left != INT || right != INT) {
         fprintf(stderr,
-                "Semantic Error: Modulo allows only INT - left(%s) op(%s) "
-                "right(%s) at line(%d)\n",
-                column_type_to_string(left), op, column_type_to_string(right),
-                expression->lineno);
+                "Semantic Error in '%s' at line %d: Modulo allows only INT - "
+                "left(%s) op(%s) right(%s).\n",
+                current_filename, expression->lineno,
+                column_type_to_string(left), op, column_type_to_string(right));
         exit(1);
       }
       return INT;
@@ -271,10 +275,10 @@ ColumnType analyze_expression(Table *current_table, ASTNode *expression) {
       if ((left != INT && left != BOOL && left != NULL_TYPE) ||
           (right != INT && right != BOOL && right != NULL_TYPE)) {
         fprintf(stderr,
-                "Semantic Error: Type Mismatch - left(%s) op(%s) right(%s) at "
-                "line(%d)\n",
-                column_type_to_string(left), op, column_type_to_string(right),
-                expression->lineno);
+                "Semantic Error in '%s' at line %d: Type Mismatch - left(%s) "
+                "op(%s) right(%s).\n",
+                current_filename, expression->lineno,
+                column_type_to_string(left), op, column_type_to_string(right));
         exit(1);
       }
       return BOOL;
@@ -282,10 +286,10 @@ ColumnType analyze_expression(Table *current_table, ASTNode *expression) {
     } else if (strcmp(op, "CONCAT") == 0) {
       if (left != TEXT || right != TEXT) {
         fprintf(stderr,
-                "Semantic Error: Type Mismatch - left(%s) op(%s) right(%s) at "
-                "line(%d)\n",
-                column_type_to_string(left), op, column_type_to_string(right),
-                expression->lineno);
+                "Semantic Error in '%s' at line %d: Type Mismatch - left(%s) "
+                "op(%s) right(%s).\n",
+                current_filename, expression->lineno,
+                column_type_to_string(left), op, column_type_to_string(right));
         exit(1);
       }
       return TEXT;
@@ -293,10 +297,10 @@ ColumnType analyze_expression(Table *current_table, ASTNode *expression) {
     } else {
       if (!type_checking(left, right)) {
         fprintf(stderr,
-                "Semantic Error: Type Mismatch - "
-                "left(%s) op(%s) right(%s) at line(%d)\n",
-                column_type_to_string(left), op, column_type_to_string(right),
-                expression->lineno);
+                "Semantic Error in '%s' at line %d: Type Mismatch - left(%s) "
+                "op(%s) right(%s).\n",
+                current_filename, expression->lineno,
+                column_type_to_string(left), op, column_type_to_string(right));
         exit(1);
       }
       return BOOL;
@@ -310,20 +314,22 @@ ColumnType analyze_expression(Table *current_table, ASTNode *expression) {
 
     if (strcmp(op, "+") == 0 || strcmp(op, "-") == 0) {
       if (operand != INT && operand != FLOAT) {
-        fprintf(
-            stderr,
-            "Semantic Error: Type Mismatch - op(%s) operand(%s) at line(%d)\n",
-            op, column_type_to_string(operand), expression->lineno);
+        fprintf(stderr,
+                "Semantic Error in '%s' at line %d: Type Mismatch - op(%s) "
+                "operand(%s).\n",
+                current_filename, expression->lineno, op,
+                column_type_to_string(operand));
         exit(1);
       }
       return operand;
 
     } else if (strcmp(op, "!") == 0) {
       if (operand != BOOL) {
-        fprintf(
-            stderr,
-            "Semantic Error: '!' allows only BOOL - operand(%s) at line(%d)\n",
-            column_type_to_string(operand), expression->lineno);
+        fprintf(stderr,
+                "Semantic Error in '%s' at line %d: '!' allows only BOOL - "
+                "operand(%s).\n",
+                current_filename, expression->lineno,
+                column_type_to_string(operand));
         exit(1);
       }
       return BOOL;
@@ -341,9 +347,10 @@ ColumnType analyze_expression(Table *current_table, ASTNode *expression) {
 
     if (!type_checking(lhs, rhs)) {
       fprintf(stderr,
-              "Semantic Error: Type Mismatch - lhs(%s) rhs(%s) at line(%d)\n",
-              column_type_to_string(lhs), column_type_to_string(rhs),
-              expression->lineno);
+              "Semantic Error in '%s' at line %d: Type Mismatch - lhs(%s) "
+              "rhs(%s).\n",
+              current_filename, expression->lineno, column_type_to_string(lhs),
+              column_type_to_string(rhs));
       exit(1);
     }
     return lhs;
@@ -402,18 +409,19 @@ int validate_aggregate_column(ASTNode *group_by, ASTNode *column) {
 void validate_where(Table *table, ASTNode *where_caluse) {
   if (!validate_where_clause(where_caluse)) {
     fprintf(stderr,
-            "Semantic Error: Aggregate functions are not allowed in WHERE "
-            "clause at line %d.\n",
-            where_caluse->lineno);
+            "Semantic Error in '%s' at line %d: Aggregate functions are not "
+            "allowed in WHERE clause.\n",
+            current_filename, where_caluse->lineno);
     exit(1);
   }
 
   ColumnType type = evaluate_expression(table, where_caluse);
   if (type != BOOL && type != INT) {
     fprintf(stderr,
-            "Semantic Error: Type Mismatch at WHERE clause at line (%d). "
+            "Semantic Error in '%s' at line %d: Type Mismatch at WHERE clause. "
             "Expected BOOL/INT, got %s.\n",
-            where_caluse->lineno, column_type_to_string(type));
+            current_filename, where_caluse->lineno,
+            column_type_to_string(type));
     exit(1);
   }
 }
@@ -477,7 +485,8 @@ void check_select_semantics(ASTNode *select_node, SymbolTable *symbol_table) {
   int limitVal = select_stmt.limit_val;
   Table *table = find_table(symbol_table, tableName);
   if (!table) {
-    fprintf(stderr, "Semantic Error: Table '%s' does not exist.\n", tableName);
+    fprintf(stderr, "Semantic Error in '%s': Table '%s' does not exist.\n",
+            current_filename, tableName);
     exit(1);
   }
 
@@ -488,9 +497,10 @@ void check_select_semantics(ASTNode *select_node, SymbolTable *symbol_table) {
     if (current->type == NODE_IDENTIFIER &&
         strcmp(current->data.str_val, "*") == 0) {
       if (is_aggregate_query) {
-        fprintf(
-            stderr,
-            "Semantic Error: Cannot use '*' in SELECT list with GROUP BY.\n");
+        fprintf(stderr,
+                "Semantic Error in '%s': Cannot use '*' in SELECT list with "
+                "GROUP BY.\n",
+                current_filename);
         exit(1);
       }
       current = current->next;
@@ -499,9 +509,9 @@ void check_select_semantics(ASTNode *select_node, SymbolTable *symbol_table) {
     if (is_aggregate_query) {
       if (!validate_aggregate_column(groupBy, current)) {
         fprintf(stderr,
-                "Semantic Error: Column '%s' must appear in GROUP BY or be "
-                "used in an aggregate function (line %d).\n",
-                current->data.str_val, current->lineno);
+                "Semantic Error in '%s' at line %d: Column '%s' must appear in "
+                "GROUP BY or be used in an aggregate function.\n",
+                current_filename, current->lineno, current->data.str_val);
         exit(1);
       }
     }
@@ -509,9 +519,10 @@ void check_select_semantics(ASTNode *select_node, SymbolTable *symbol_table) {
     ColumnType type = evaluate_expression(table, current);
 
     if (type == NULL_TYPE && current->type != NODE_NULL_LITERAL) {
-      fprintf(stderr,
-              "Semantic Error: Invalid expression in SELECT at line %d\n",
-              current->lineno);
+      fprintf(
+          stderr,
+          "Semantic Error in '%s' at line %d: Invalid expression in SELECT.\n",
+          current_filename, current->lineno);
       exit(1);
     }
     current = current->next;
@@ -528,9 +539,9 @@ void check_select_semantics(ASTNode *select_node, SymbolTable *symbol_table) {
 
       if (current_gb->type == NODE_FUNC_CALL) {
         fprintf(stderr,
-                "Semantic Error: Aggregate function is not allowed in GROUP BY "
-                "clause at line %d.\n",
-                current_gb->lineno);
+                "Semantic Error in '%s' at line %d: Aggregate function is not "
+                "allowed in GROUP BY clause.\n",
+                current_filename, current_gb->lineno);
         exit(1);
       }
       current_gb = current_gb->next;
@@ -540,18 +551,18 @@ void check_select_semantics(ASTNode *select_node, SymbolTable *symbol_table) {
   if (having) {
     if (!validate_having_clause(groupBy, having)) {
       fprintf(stderr,
-              "Semantic Error: Column in HAVING clause must appear in the "
-              "GROUP BY clause at line %d.\n",
-              having->lineno);
+              "Semantic Error in '%s' at line %d: Column in HAVING clause must "
+              "appear in the GROUP BY clause.\n",
+              current_filename, having->lineno);
       exit(1);
     }
 
     ColumnType type = evaluate_expression(table, having);
     if (type != BOOL && type != INT) {
       fprintf(stderr,
-              "Semantic Error: Type Mismatch at HAVING clause at line (%d). "
-              "Expected BOOL/INT, got %s.\n",
-              having->lineno, column_type_to_string(type));
+              "Semantic Error in '%s' at line %d: Type Mismatch at HAVING "
+              "clause. Expected BOOL/INT, got %s.\n",
+              current_filename, having->lineno, column_type_to_string(type));
       exit(1);
     }
   }
@@ -563,9 +574,9 @@ void check_select_semantics(ASTNode *select_node, SymbolTable *symbol_table) {
 
       if (is_aggregate_query && !validate_having_clause(groupBy, current_ob)) {
         fprintf(stderr,
-                "Semantic Error: Column in ORDER BY must appear in the GROUP "
-                "BY clause at line %d.\n",
-                current_ob->lineno);
+                "Semantic Error in '%s' at line %d: Column in ORDER BY must "
+                "appear in the GROUP BY clause.\n",
+                current_filename, current_ob->lineno);
         exit(1);
       }
       current_ob = current_ob->next;
@@ -574,9 +585,9 @@ void check_select_semantics(ASTNode *select_node, SymbolTable *symbol_table) {
 
   if (limitVal < 0 && limitVal != -1) {
     fprintf(stderr,
-            "Semantic Error: Limit val must be a non-negative integer value"
-            "at table %s.\n",
-            table->name);
+            "Semantic Error in '%s': Limit val must be a non-negative integer "
+            "value for table '%s'.\n",
+            current_filename, table->name);
     exit(1);
   }
 }
@@ -604,9 +615,9 @@ int count_columns(Column *columns) {
 void check_is_null_value(Column *column, ColumnType value_type, int lineno) {
   if (column->is_not_null && value_type == NULL_TYPE) {
     fprintf(stderr,
-            "Semantic Error: NULL is not allowed. Column '%s' has "
-            "NOT NULL constraint at line(%d).\n",
-            column->name, lineno);
+            "Semantic Error in '%s' at line %d: NULL is not allowed. Column "
+            "'%s' has NOT NULL constraint.\n",
+            current_filename, lineno, column->name);
     exit(1);
   }
 }
@@ -628,9 +639,9 @@ void validate_non_null_columns(Column *columns, ASTNode *column_list,
       }
       if (!found) {
         fprintf(stderr,
-                "Semantic Error: Field '%s' has a NOT NULL constraint and is "
-                "missing from INSERT column list (line %d).\n",
-                tableCol->name, lineno);
+                "Semantic Error in '%s' at line %d: Field '%s' has a NOT NULL "
+                "constraint and is missing from INSERT column list.\n",
+                current_filename, lineno, tableCol->name);
         exit(1);
       }
     }
@@ -652,8 +663,9 @@ Column *convert_ast_column_to_Columns(Table *table, ASTNode *columns) {
   while (current) {
     Column *original_col = find_column(table, current->data.str_val);
     if (!original_col) {
-      fprintf(stderr, "Semantic Error: Column '%s' not found in table '%s'\n",
-              current->data.str_val, table->name);
+      fprintf(stderr,
+              "Semantic Error in '%s': Column '%s' not found in table '%s'.\n",
+              current_filename, current->data.str_val, table->name);
       exit(1);
     }
 
@@ -678,6 +690,7 @@ Column *convert_ast_column_to_Columns(Table *table, ASTNode *columns) {
   free(head);
   return real_head;
 }
+
 void validate_values_columns(Table *table, Column *columns,
                              ASTNode *values_list) {
   Column *currentTableCol = columns;
@@ -689,12 +702,13 @@ void validate_values_columns(Table *table, Column *columns,
     check_is_null_value(currentTableCol, valuesType, values_list->lineno);
 
     if (!type_checking(currentTableCol->type, valuesType)) {
-      fprintf(stderr,
-              "Semantic Error: Type Mismatch (Insert statement). Column '%s' "
-              "expects type(%s) but got value type(%s) at line %d.\n",
-              currentTableCol->name,
-              column_type_to_string(currentTableCol->type),
-              column_type_to_string(valuesType), values_list->lineno);
+      fprintf(
+          stderr,
+          "Semantic Error in '%s' at line %d: Type Mismatch (Insert "
+          "statement). Column '%s' expects type(%s) but got value type(%s).\n",
+          current_filename, values_list->lineno, currentTableCol->name,
+          column_type_to_string(currentTableCol->type),
+          column_type_to_string(valuesType));
       exit(1);
     }
 
@@ -713,19 +727,19 @@ void validate_values_list(Table *table, Column *column_list,
   if (column_list) {
     if (columnCount != valuesCount) {
       fprintf(stderr,
-              "Semantic Error: Insert statement: Mismatch in columns list. "
-              "columns count(%d) values count(%d) at line(%d).\n",
-              columnCount, valuesCount, values_list->lineno);
+              "Semantic Error in '%s' at line %d: Insert statement: Mismatch "
+              "in columns list. columns count(%d) values count(%d).\n",
+              current_filename, values_list->lineno, columnCount, valuesCount);
       exit(1);
     }
     validate_values_columns(table, column_list, values_list);
   } else {
     if (valuesCount != countTableCols) {
-      fprintf(
-          stderr,
-          "Semantic Error: Insert mismatch. Table '%s' has %d columns, but %d "
-          "values provided (line %d).\n",
-          table->name, countTableCols, valuesCount, values_list->lineno);
+      fprintf(stderr,
+              "Semantic Error in '%s' at line %d: Insert mismatch. Table '%s' "
+              "has %d columns, but %d values provided.\n",
+              current_filename, values_list->lineno, table->name,
+              countTableCols, valuesCount);
       exit(1);
     }
 
@@ -739,7 +753,8 @@ void check_insert_semantics(ASTNode *insert_node, SymbolTable *symbol_table) {
 
   Table *table = find_table(symbol_table, tableName);
   if (!table) {
-    fprintf(stderr, "Semantic Error: Table '%s' does not exist.\n", tableName);
+    fprintf(stderr, "Semantic Error in '%s': Table '%s' does not exist.\n",
+            current_filename, tableName);
     exit(1);
   }
 
@@ -747,10 +762,10 @@ void check_insert_semantics(ASTNode *insert_node, SymbolTable *symbol_table) {
       table, insert_node->data.insert_stmt.column_list);
 
   if (!valueList) {
-    fprintf(
-        stderr,
-        "Semantic Error: Insert statement missing values list at line %d.\n",
-        insert_node->lineno);
+    fprintf(stderr,
+            "Semantic Error in '%s' at line %d: Insert statement missing "
+            "values list.\n",
+            current_filename, insert_node->lineno);
     exit(1);
   }
 
@@ -790,9 +805,9 @@ void validate_update_list(Table *table, ASTNode *update_list) {
   while (current) {
     if (current->type != NODE_ASSIGNMENT) {
       fprintf(stderr,
-              "Semantic Error: Expected assignment in UPDATE SET clause at "
-              "line %d.\n",
-              current->lineno);
+              "Semantic Error in '%s' at line %d: Expected assignment in "
+              "UPDATE SET clause.\n",
+              current_filename, current->lineno);
       exit(1);
     }
 
@@ -804,9 +819,9 @@ void validate_update_list(Table *table, ASTNode *update_list) {
 
     if (!validate_expression_no_aggregates(expr_node)) {
       fprintf(stderr,
-              "Semantic Error: Aggregate functions are not allowed in UPDATE "
-              "SET clause at line %d.\n",
-              current->lineno);
+              "Semantic Error in '%s' at line %d: Aggregate functions are not "
+              "allowed in UPDATE SET clause.\n",
+              current_filename, current->lineno);
       exit(1);
     }
 
@@ -817,10 +832,11 @@ void validate_update_list(Table *table, ASTNode *update_list) {
 
     if (!type_checking(lhsType, rhsType)) {
       fprintf(stderr,
-              "Semantic Error: Type Mismatch (Update statement). Column '%s' "
-              "expects type(%s) but got expression type(%s) at line %d.\n",
-              tableCol->name, column_type_to_string(lhsType),
-              column_type_to_string(rhsType), current->lineno);
+              "Semantic Error in '%s' at line %d: Type Mismatch (Update "
+              "statement). Column '%s' expects type(%s) but got expression "
+              "type(%s).\n",
+              current_filename, current->lineno, tableCol->name,
+              column_type_to_string(lhsType), column_type_to_string(rhsType));
       exit(1);
     }
 
@@ -835,15 +851,16 @@ void check_update_semantics(ASTNode *update_node, SymbolTable *symbol_table) {
 
   Table *table = find_table(symbol_table, tableName);
   if (!table) {
-    fprintf(stderr, "Semantic Error: Table '%s' does not exist.\n", tableName);
+    fprintf(stderr, "Semantic Error in '%s': Table '%s' does not exist.\n",
+            current_filename, tableName);
     exit(1);
   }
 
   if (!updateList) {
-    fprintf(
-        stderr,
-        "Semantic Error: Update statement missing update list at line %d.\n",
-        update_node->lineno);
+    fprintf(stderr,
+            "Semantic Error in '%s' at line %d: Update statement missing "
+            "update list.\n",
+            current_filename, update_node->lineno);
     exit(1);
   }
 
@@ -860,7 +877,8 @@ void check_delete_semantics(ASTNode *delete_node, SymbolTable *symbol_table) {
 
   Table *table = find_table(symbol_table, tableName);
   if (!table) {
-    fprintf(stderr, "Semantic Error: Table '%s' does not exist.\n", tableName);
+    fprintf(stderr, "Semantic Error in '%s': Table '%s' does not exist.\n",
+            current_filename, tableName);
     exit(1);
   }
 
@@ -874,7 +892,8 @@ void check_drop_statement(ASTNode *drop_node, SymbolTable *symbol_table) {
 
   Table *table = find_table(symbol_table, tableName);
   if (!table) {
-    fprintf(stderr, "Semantic Error: Table '%s' does not exist.\n", tableName);
+    fprintf(stderr, "Semantic Error in '%s': Table '%s' does not exist.\n",
+            current_filename, tableName);
     exit(1);
   }
 

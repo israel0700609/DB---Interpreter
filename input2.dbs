@@ -1,0 +1,20 @@
+INSERT INTO departments (dept_id, dept_name) VALUES (10, 'Engineering');
+INSERT INTO departments (dept_id, dept_name) VALUES (20, 'HR');
+
+INSERT INTO employees (emp_id, emp_name, salary, is_active, dept_id) 
+VALUES (1, 'Alice', 9500.50, TRUE, 10);
+
+INSERT INTO employees (emp_id, emp_name, salary, is_active, dept_id) 
+VALUES (2, 'Bob', 7200.00, FALSE, 20);
+
+INSERT INTO employees (emp_id, emp_name, salary, is_active, dept_id) 
+VALUES (3, 'Charlie', 11000.00, TRUE, 10);
+
+UPDATE employees SET salary = salary + 500.0 WHERE is_active = TRUE;
+UPDATE employees SET is_active = TRUE WHERE emp_id = 2;
+
+SELECT emp_name, salary FROM employees WHERE salary > 8000.0;
+
+SELECT dept_id, COUNT(*) FROM employees GROUP BY dept_id;
+
+DELETE FROM employees WHERE is_active = FALSE;

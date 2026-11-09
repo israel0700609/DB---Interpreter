@@ -1,13 +1,18 @@
 #include "ast.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 extern int lineno;
+extern const char *current_filename;
 
 ASTNode *root = NULL;
 
 ASTNode *create_int_node(int val, int lineno) {
   ASTNode *node = (ASTNode *)malloc(sizeof(ASTNode));
   if (!node) {
-    fprintf(stderr, "Error: Out of memory at line %d\n", lineno);
+    fprintf(stderr, "Error in '%s': Out of memory at line %d\n",
+            current_filename, lineno);
     exit(1);
   }
   node->type = NODE_INT_LITERAL;
@@ -22,7 +27,8 @@ ASTNode *create_int_node(int val, int lineno) {
 ASTNode *create_real_node(double val, int lineno) {
   ASTNode *node = (ASTNode *)malloc(sizeof(ASTNode));
   if (!node) {
-    fprintf(stderr, "Error: Out of memory at line %d\n", lineno);
+    fprintf(stderr, "Error in '%s': Out of memory at line %d\n",
+            current_filename, lineno);
     exit(1);
   }
 
@@ -38,7 +44,8 @@ ASTNode *create_real_node(double val, int lineno) {
 ASTNode *create_string_node(char *val, int lineno) {
   ASTNode *node = (ASTNode *)malloc(sizeof(ASTNode));
   if (!node) {
-    fprintf(stderr, "Error : Out of memory at line %d\n", lineno);
+    fprintf(stderr, "Error in '%s': Out of memory at line %d\n",
+            current_filename, lineno);
     exit(1);
   }
 
@@ -47,7 +54,8 @@ ASTNode *create_string_node(char *val, int lineno) {
 
   node->data.str_val = (char *)malloc(strlen(val) + 1);
   if (!node->data.str_val) {
-    fprintf(stderr, "Error: Out of memory at line %d\n", lineno);
+    fprintf(stderr, "Error in '%s': Out of memory at line %d\n",
+            current_filename, lineno);
     exit(1);
   }
 
@@ -61,7 +69,8 @@ ASTNode *create_string_node(char *val, int lineno) {
 ASTNode *create_bool_node(int val, int lineno) {
   ASTNode *node = (ASTNode *)malloc(sizeof(ASTNode));
   if (!node) {
-    fprintf(stderr, "Error: Out of memory at line %d\n", lineno);
+    fprintf(stderr, "Error in '%s': Out of memory at line %d\n",
+            current_filename, lineno);
     exit(1);
   }
 
@@ -77,7 +86,8 @@ ASTNode *create_bool_node(int val, int lineno) {
 ASTNode *create_null_node(int lineno) {
   ASTNode *node = (ASTNode *)malloc(sizeof(ASTNode));
   if (!node) {
-    fprintf(stderr, "Error: Out of memory at line %d\n", lineno);
+    fprintf(stderr, "Error in '%s': Out of memory at line %d\n",
+            current_filename, lineno);
     exit(1);
   }
 
@@ -92,7 +102,8 @@ ASTNode *create_null_node(int lineno) {
 ASTNode *create_identifier_node(char *name, int lineno) {
   ASTNode *node = (ASTNode *)malloc(sizeof(ASTNode));
   if (!node) {
-    fprintf(stderr, "Error : Out of memory at line %d\n", lineno);
+    fprintf(stderr, "Error in '%s': Out of memory at line %d\n",
+            current_filename, lineno);
     exit(1);
   }
 
@@ -101,7 +112,8 @@ ASTNode *create_identifier_node(char *name, int lineno) {
 
   node->data.str_val = (char *)malloc(strlen(name) + 1);
   if (!node->data.str_val) {
-    fprintf(stderr, "Error: Out of memory at line %d\n", lineno);
+    fprintf(stderr, "Error in '%s': Out of memory at line %d\n",
+            current_filename, lineno);
     exit(1);
   }
 
@@ -116,7 +128,8 @@ ASTNode *create_binary_expr_node(char *op, ASTNode *left, ASTNode *right,
                                  int lineno) {
   ASTNode *node = (ASTNode *)malloc(sizeof(ASTNode));
   if (!node) {
-    fprintf(stderr, "Error : Out of memory at line %d\n", lineno);
+    fprintf(stderr, "Error in '%s': Out of memory at line %d\n",
+            current_filename, lineno);
     exit(1);
   }
 
@@ -134,7 +147,8 @@ ASTNode *create_binary_expr_node(char *op, ASTNode *left, ASTNode *right,
 ASTNode *create_unary_expr_node(char *op, ASTNode *operand, int lineno) {
   ASTNode *node = (ASTNode *)malloc(sizeof(ASTNode));
   if (!node) {
-    fprintf(stderr, "Error : Out of memory at line %d\n", lineno);
+    fprintf(stderr, "Error in '%s': Out of memory at line %d\n",
+            current_filename, lineno);
     exit(1);
   }
 
@@ -152,7 +166,8 @@ ASTNode *create_unary_expr_node(char *op, ASTNode *operand, int lineno) {
 ASTNode *create_func_call_node(char *name, ASTNode *arg, int lineno) {
   ASTNode *node = (ASTNode *)malloc(sizeof(ASTNode));
   if (!node) {
-    fprintf(stderr, "Error : Out of memory at line %d\n", lineno);
+    fprintf(stderr, "Error in '%s': Out of memory at line %d\n",
+            current_filename, lineno);
     exit(1);
   }
 
@@ -174,7 +189,8 @@ ASTNode *create_select_node(int is_distinct, ASTNode *select_list,
 
   ASTNode *node = (ASTNode *)malloc(sizeof(ASTNode));
   if (!node) {
-    fprintf(stderr, "Error : Out of memory at line %d\n", lineno);
+    fprintf(stderr, "Error in '%s': Out of memory at line %d\n",
+            current_filename, lineno);
     exit(1);
   }
 
@@ -196,7 +212,8 @@ ASTNode *create_create_table_node(char *table_name, ASTNode *column_list,
                                   int lineno) {
   ASTNode *node = (ASTNode *)malloc(sizeof(ASTNode));
   if (!node) {
-    fprintf(stderr, "Error : Out of memory at line %d\n", lineno);
+    fprintf(stderr, "Error in '%s': Out of memory at line %d\n",
+            current_filename, lineno);
     exit(1);
   }
 
@@ -215,7 +232,8 @@ ASTNode *create_insert_table_node(char *table_name, ASTNode *column_list,
                                   ASTNode *value_list, int lineno) {
   ASTNode *node = (ASTNode *)malloc(sizeof(ASTNode));
   if (!node) {
-    fprintf(stderr, "Error : Out of memory at line %d\n", lineno);
+    fprintf(stderr, "Error in '%s': Out of memory at line %d\n",
+            current_filename, lineno);
     exit(1);
   }
 
@@ -235,7 +253,8 @@ ASTNode *create_update_table_node(char *table_name, ASTNode *update_list,
                                   ASTNode *where_clause, int lineno) {
   ASTNode *node = (ASTNode *)malloc(sizeof(ASTNode));
   if (!node) {
-    fprintf(stderr, "Error : Out of memory at line %d\n", lineno);
+    fprintf(stderr, "Error in '%s': Out of memory at line %d\n",
+            current_filename, lineno);
     exit(1);
   }
 
@@ -255,7 +274,8 @@ ASTNode *create_delete_table_node(char *table_name, ASTNode *where_clause,
                                   int lineno) {
   ASTNode *node = (ASTNode *)malloc(sizeof(ASTNode));
   if (!node) {
-    fprintf(stderr, "Error : Out of memory at line %d\n", lineno);
+    fprintf(stderr, "Error in '%s': Out of memory at line %d\n",
+            current_filename, lineno);
     exit(1);
   }
 
@@ -274,7 +294,8 @@ ASTNode *create_delete_table_node(char *table_name, ASTNode *where_clause,
 ASTNode *create_drop_table_node(char *table_name, int lineno) {
   ASTNode *node = (ASTNode *)malloc(sizeof(ASTNode));
   if (!node) {
-    fprintf(stderr, "Error: Out of memory at line %d\n", lineno);
+    fprintf(stderr, "Error in '%s': Out of memory at line %d\n",
+            current_filename, lineno);
     exit(1);
   }
 
@@ -291,7 +312,8 @@ ASTNode *create_column_def_node(char *name, char *type, int is_pk, int is_nn,
 
   ASTNode *node = (ASTNode *)malloc(sizeof(ASTNode));
   if (!node) {
-    fprintf(stderr, "Error : Out of memory at line %d\n", lineno);
+    fprintf(stderr, "Error in '%s': Out of memory at line %d\n",
+            current_filename, lineno);
     exit(1);
   }
 
@@ -311,7 +333,8 @@ ASTNode *create_assignment_node(ASTNode *identifier, ASTNode *expr,
                                 int lineno) {
   ASTNode *node = (ASTNode *)malloc(sizeof(ASTNode));
   if (!node) {
-    fprintf(stderr, "Error : Out of memory at line %d\n", lineno);
+    fprintf(stderr, "Error in '%s': Out of memory at line %d\n",
+            current_filename, lineno);
     exit(1);
   }
 
@@ -329,7 +352,8 @@ ASTNode *create_assignment_node(ASTNode *identifier, ASTNode *expr,
 ASTNode *create_order_by_item_node(ASTNode *expr, int is_desc, int lineno) {
   ASTNode *node = (ASTNode *)malloc(sizeof(ASTNode));
   if (!node) {
-    fprintf(stderr, "Error : Out of memory at line %d\n", lineno);
+    fprintf(stderr, "Error in '%s': Out of memory at line %d\n",
+            current_filename, lineno);
     exit(1);
   }
 
@@ -347,7 +371,8 @@ ASTNode *create_order_by_item_node(ASTNode *expr, int is_desc, int lineno) {
 ASTNode *create_program_node(ASTNode *stmts, int lineno) {
   ASTNode *node = (ASTNode *)malloc(sizeof(ASTNode));
   if (!node) {
-    fprintf(stderr, "Error : Out of memory at line %d\n", lineno);
+    fprintf(stderr, "Error in '%s': Out of memory at line %d\n",
+            current_filename, lineno);
     exit(1);
   }
 

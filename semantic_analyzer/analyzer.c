@@ -1,19 +1,18 @@
 #include "analyzer.h"
 #include "utils/semantic_utils.h"
+#include <stdio.h>
+#include <stdlib.h>
 
-void run_semantics(ASTNode *root) {
-  if (!root) {
-    fprintf(stderr, "AST root must be defiend.\n");
-    exit(1);
+extern const char *current_filename;
+
+void run_semantics(ASTNode *root, SymbolTable *st) {
+  if (!root || !st) {
+    return;
   }
 
-  SymbolTable *symbol_table = build_symbol_table(root);
-  if (!symbol_table) {
-    fprintf(stderr, "Semantic Error: Could not build symbol table.\n");
-    exit(1);
-  }
+  build_symbol_table(root, st);
 
-  analyze_semantics(root, symbol_table);
+  analyze_semantics(root, st);
 }
 
 void analyze_semantics(ASTNode *root, SymbolTable *st) {
@@ -53,8 +52,9 @@ void analyze_semantics(ASTNode *root, SymbolTable *st) {
       break;
 
     default:
-      fprintf(stderr, "Semantic Error: Unknown statement type at line %d.\n",
-              current->lineno);
+      fprintf(stderr,
+              "Semantic Error in '%s' at line %d: Unknown statement type.\n",
+              current_filename, current->lineno);
       exit(1);
     }
 

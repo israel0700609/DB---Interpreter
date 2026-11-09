@@ -1,18 +1,113 @@
- Parsing Successful. 
- Abstract Syntax Tree: 
+=== AST FOR FILE: input1.dbs ===
 [PROGRAM]
+  [CREATE TABLE STMT] Table: departments
+    [COLUMN DEF] Name: dept_id, Type: INT (PK: 1, NOT NULL: 1)
+    [COLUMN DEF] Name: dept_name, Type: TEXT (PK: 0, NOT NULL: 1)
   [CREATE TABLE STMT] Table: employees
-    [COLUMN DEF] Name: id, Type: INT (PK: 1, NOT NULL: 1)
-    [COLUMN DEF] Name: name, Type: TEXT (PK: 0, NOT NULL: 1)
+    [COLUMN DEF] Name: emp_id, Type: INT (PK: 1, NOT NULL: 1)
+    [COLUMN DEF] Name: emp_name, Type: TEXT (PK: 0, NOT NULL: 1)
     [COLUMN DEF] Name: salary, Type: FLOAT (PK: 0, NOT NULL: 0)
-    [COLUMN DEF] Name: is_manager, Type: BOOL (PK: 0, NOT NULL: 0)
+    [COLUMN DEF] Name: is_active, Type: BOOL (PK: 0, NOT NULL: 0)
+    [COLUMN DEF] Name: dept_id, Type: INT (PK: 0, NOT NULL: 1)
+
+=== AST FOR FILE: input2.dbs ===
+[PROGRAM]
+  [INSERT STMT] Table: departments
+    Columns:
+      [IDENTIFIER] dept_id
+      [IDENTIFIER] dept_name
+    Values:
+      [INT] 10
+      [STRING] "Engineering"
+  [INSERT STMT] Table: departments
+    Columns:
+      [IDENTIFIER] dept_id
+      [IDENTIFIER] dept_name
+    Values:
+      [INT] 20
+      [STRING] "HR"
+  [INSERT STMT] Table: employees
+    Columns:
+      [IDENTIFIER] emp_id
+      [IDENTIFIER] emp_name
+      [IDENTIFIER] salary
+      [IDENTIFIER] is_active
+      [IDENTIFIER] dept_id
+    Values:
+      [INT] 1
+      [STRING] "Alice"
+      [REAL] 9500.500000
+      [BOOL] TRUE
+      [INT] 10
+  [INSERT STMT] Table: employees
+    Columns:
+      [IDENTIFIER] emp_id
+      [IDENTIFIER] emp_name
+      [IDENTIFIER] salary
+      [IDENTIFIER] is_active
+      [IDENTIFIER] dept_id
+    Values:
+      [INT] 2
+      [STRING] "Bob"
+      [REAL] 7200.000000
+      [BOOL] FALSE
+      [INT] 20
+  [INSERT STMT] Table: employees
+    Columns:
+      [IDENTIFIER] emp_id
+      [IDENTIFIER] emp_name
+      [IDENTIFIER] salary
+      [IDENTIFIER] is_active
+      [IDENTIFIER] dept_id
+    Values:
+      [INT] 3
+      [STRING] "Charlie"
+      [REAL] 11000.000000
+      [BOOL] TRUE
+      [INT] 10
   [UPDATE STMT] Table: employees
     SET:
       [ASSIGNMENT]
-        [IDENTIFIER] is_manager
-        [INT] 100
+        [IDENTIFIER] salary
+        [BINARY EXPR] Op: +
+          [IDENTIFIER] salary
+          [REAL] 500.000000
     WHERE:
       [BINARY EXPR] Op: =
-        [IDENTIFIER] id
-        [INT] 1
-Semantics analyzing successful.
+        [IDENTIFIER] is_active
+        [BOOL] TRUE
+  [UPDATE STMT] Table: employees
+    SET:
+      [ASSIGNMENT]
+        [IDENTIFIER] is_active
+        [BOOL] TRUE
+    WHERE:
+      [BINARY EXPR] Op: =
+        [IDENTIFIER] emp_id
+        [INT] 2
+  [SELECT STMT] Table: employees, Distinct: 0, Limit: -1
+    Select List:
+      [IDENTIFIER] emp_name
+      [IDENTIFIER] salary
+    WHERE:
+      [BINARY EXPR] Op: >
+        [IDENTIFIER] salary
+        [REAL] 8000.000000
+  [SELECT STMT] Table: employees, Distinct: 0, Limit: -1
+    Select List:
+      [IDENTIFIER] dept_id
+      [FUNC CALL] Name: COUNT
+        [IDENTIFIER] *
+    GROUP BY:
+      [IDENTIFIER] dept_id
+  [DELETE STMT] Table: employees
+    WHERE:
+      [BINARY EXPR] Op: =
+        [IDENTIFIER] is_active
+        [BOOL] FALSE
+
+=== AST FOR FILE: input3.dbs ===
+[PROGRAM]
+  [DROP TABLE STMT] Table: employees
+  [DROP TABLE STMT] Table: departments
+

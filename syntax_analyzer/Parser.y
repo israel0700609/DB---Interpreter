@@ -9,7 +9,7 @@
 extern int yylineno;
 extern char* yytext; 
 extern ASTNode* root; 
-
+extern const char *current_filename;
 
 
 int yylex(); 
@@ -456,43 +456,7 @@ aggregation_function:
 %% 
 
 
-
-
-
-
-
-void yyerror(const char* s){
-    printf("Syntax Error on line %d: %s: Unexpected token '%s' \n ", yylineno, s, yytext);
-}
-
-int main(int argc, char** argv){
-    FILE* out = stdout;
-
-    if(argc > 1){
-        out = fopen(argv[1], "w");
-        if(!out){
-            fprintf(stderr, "Failed to open file: %s\n", argv[1]);
-            return 1;
-        }
-    }
-
-    if(yyparse() == 0){
-        fprintf(out, " Parsing Successful. \n");
-        fprintf(out, " Abstract Syntax Tree: \n");
-
-        print_ast(root, out, 0);
-    }
-
-    run_semantics(root);
-
-    fprintf(out, "Semantics analyzing successful.\n");
-
-    if(out != stdout){
-        fclose(out);
-    }
-
-
-    free_ast(root);
-    
-    return 0; 
+void yyerror(const char* s) {
+    fprintf(stderr, "Syntax Error in '%s' on line %d: %s (Unexpected token '%s')\n", 
+            current_filename, yylineno, s, yytext);
 }
